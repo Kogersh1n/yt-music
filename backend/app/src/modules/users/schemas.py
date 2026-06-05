@@ -1,13 +1,13 @@
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field
 from src.core.config import settings
 from src.modules.users.enums import UserRole
 
 
 class UserBase(BaseModel):
     username: str = Field(min_length=2, max_length=20)
-    email: EmailStr
+    email: str
 
 
 class UserCreate(UserBase):
@@ -16,7 +16,7 @@ class UserCreate(UserBase):
 
 class UserUpdate(BaseModel):
     username: str | None = Field(None, min_length=2, max_length=20)
-    email: EmailStr | None = None
+    email: str | None = None
 
 
 class UserResponse(UserBase):

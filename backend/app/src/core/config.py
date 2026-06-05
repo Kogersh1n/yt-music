@@ -4,13 +4,14 @@ from sqlalchemy import URL
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file = '.env'
+        env_file = '.env',
+        extra = 'ignore'
     )
 
     DEBUG: bool = False
 
     ALLOWED_HOSTS: list[str]
-    CORE_ORIGINS: list[str]
+    CORS_ORIGINS: list[str]
 
     SECRET_KEY: SecretStr
     
@@ -26,10 +27,27 @@ class Settings(BaseSettings):
     DB_PASSWORD: SecretStr
     DB_NAME: str
 
-    REDIS_HOST: str
-    REDIS_PORT: int
-    REDIS_DB: int
-    REDIS_PASSWORD: SecretStr
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    REDIS_PASSWORD: SecretStr | None = None
+
+    R2_ACCOUNT_ID: str
+    R2_ACCESS_KEY_ID: str
+    R2_SECRET_ACCESS_KEY: str
+    R2_SONGS_BUCKET: str
+    R2_COVERS_BUCKET: str
+    R2_AVATARS_BUCKET: str | None = None
+    R2_LOCAL_ENDPOINT: str | None = None
+    R2_INTERNAL_ENDPOINT: str | None = None
+
+
+    @property
+    def r2_endpoint_url(self) -> str:
+        if self.R2_LOCAL_ENDPOINT:
+            return self.R2_LOCAL_ENDPOINT
+
+        return f"https://{self.R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
     @property
     def db_url(self) -> URL:
