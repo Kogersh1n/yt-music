@@ -34,4 +34,4 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
         return result.scalars().first() is not None
 
 
-user_repo = UserRepository
+user_repo = UserRepository()
