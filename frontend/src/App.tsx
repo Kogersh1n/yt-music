@@ -1,10 +1,13 @@
 import './App.css'
 import {useState, useEffect, useRef} from 'react' 
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
 import {MOCK_SONGS} from './mockData.ts'
 
-import Header from './components/Header.tsx'
-import SongList from './components/SongList.tsx'
-import Player from './components/Player.tsx'
+import Layout from './components/Layout.tsx';
+import HomePage from './pages/HomePage';
+import SearchPage from './pages/SearchPage';
+import LibraryPage from './pages/LibraryPage';
 
 interface Song {
   id: number;
@@ -50,26 +53,39 @@ function App() {
 
 
   return (
-    <div className='h-screen flex flex-col bg-zinc-950 text-white'>
-      <Header />
-    <main className="flex-1 overflow-y-auto p-4 md:p-8">
-      <SongList
-      songs={songs}
-      currentSong={currentSong}
-      onSongSelect={setCurrentSong}
-      />
-    </main>
+      <BrowserRouter>
+        <Routes>
+          <Route 
+            element={
+              <Layout 
+                isPlaying={isPlaying}
+                currentSong={currentSong}
+                togglePlay={togglePlay}
+              />
+            }
+          >
 
-    <Player
-    currentSong={currentSong}
-    togglePlay={togglePlay}
-    isPlaying={isPlaying}
-    />
+            <Route 
+              index 
+              element={
+                <HomePage 
+                  songs={songs} 
+                  currentSong={currentSong} 
+                  onSongSelect={setCurrentSong} 
+                />
+              } 
+            />
 
-    <audio ref={audioRef} src={currentSong?.url}/>  
-     
-    </div>
+            <Route path="search" element={<SearchPage />} />
 
+            <Route path="library" element={<LibraryPage />} />
+
+
+
+          </Route>
+        </Routes>
+        <audio ref={audioRef} src={currentSong?.url}/>
+      </BrowserRouter>
 
   )
 
