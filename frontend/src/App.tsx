@@ -94,6 +94,7 @@ function App() {
                 isPlaying={isPlaying}
                 currentSong={currentSong}
                 togglePlay={togglePlay}
+                audioRef={audioRef}
               />
             }
           >

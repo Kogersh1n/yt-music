@@ -15,9 +15,10 @@ interface LayoutProps {
     isPlaying: boolean
     currentSong: Song | null
     togglePlay: () => void
+    audioRef: React.RefObject<HTMLAudioElement | null>;
 }
 
-function Layout({isPlaying, currentSong, togglePlay}: LayoutProps){
+function Layout({isPlaying, currentSong, togglePlay, audioRef}: LayoutProps){
     return (
         <div className='h-screen flex flex-col bg-zinc-950 text-white'>
             <Header />
@@ -38,6 +39,7 @@ function Layout({isPlaying, currentSong, togglePlay}: LayoutProps){
                 currentSong={currentSong}
                 togglePlay={togglePlay}
                 isPlaying={isPlaying}
+                audioRef={audioRef}
             />
 
         </div>
