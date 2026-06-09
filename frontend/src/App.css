@@ -1,3 +1,53 @@
+/* reset styles for ползунок */
+.custom-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Chrome, Safari, Edge, Opera */
+.custom-slider::-webkit-slider-runnable-track {
+  background: #3f3f46; 
+  height: 4px;
+  border-radius: 9999px;
+}
+
+.custom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 12px;
+  width: 12px;
+  border-radius: 50%;
+  background: #db2777;
+  margin-top: -4px;
+  transition: transform 0.1s ease;
+}
+
+.custom-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* Firefox */
+.custom-slider::-moz-range-track {
+  background: #3f3f46;
+  height: 4px;
+  border-radius: 9999px;
+}
+
+.custom-slider::-moz-range-thumb {
+  border: none; /* Firefox adds default border */
+  height: 12px;
+  width: 12px;
+  border-radius: 50%;
+  background: #db2777;
+  transition: transform 0.1s ease;
+}
+
+.custom-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+}
+
 .counter {
   font-size: 16px;
   padding: 5px 10px;

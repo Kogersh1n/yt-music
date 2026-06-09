@@ -107,7 +107,7 @@ function Player({currentSong, togglePlay, isPlaying, audioRef}: PlayerProps){
                       max={duration || 0}
                       value={currentTime}
                       onChange={handleTimeChange}
-                      className="w-full h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-pink-600 hover:accent-pink-500 transition-colors"
+                      className="w-full custom-slider h-4 bg-transparent appearance-none cursor-pointer"
                   />
                 <span className="shrink-0">{formatTime(duration)}</span>
               </div>
@@ -122,9 +122,7 @@ function Player({currentSong, togglePlay, isPlaying, audioRef}: PlayerProps){
                     step={0.01}
                     value={volume}
                     onChange={handleVolumeChange}
-                    className='w-20 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer'
-
-                
+                    className='w-20 custom-slider h-4 bg-transparent appearance-none cursor-pointer'
                 />
             </div>
           </>
