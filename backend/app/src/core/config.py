@@ -4,8 +4,7 @@ from sqlalchemy import URL
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file = '.env',
-        extra = 'ignore'
+        env_file = ('.env', '../.env'),
     )
 
     DEBUG: bool = False
