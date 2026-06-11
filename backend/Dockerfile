@@ -26,5 +26,5 @@ EXPOSE 8000
 # Set the final working directory to /app/app so uvicorn runs in the correct context
 WORKDIR /app/app
 
-# Start the application
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run migrations, then start the application
+CMD alembic upgrade head && uvicorn src.main:app --host 0.0.0.0 --port 8000
