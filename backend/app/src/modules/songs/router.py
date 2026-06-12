@@ -1,9 +1,7 @@
-from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
 
-from fastapi import Depends, APIRouter,status,Query
-from typing import Annotated
+from fastapi import APIRouter,status,Query
 
-from src.db.session import get_async_session
 from src.modules.songs.schemas import SongResponse,SongCreate
 from src.modules.songs.service import song_service 
 from src.core.deps import SessionDep
@@ -39,7 +37,6 @@ async def upload_url(
 
     
 
-
 @songs_router.post(
     '/',
     response_model=SongResponse,
@@ -52,9 +49,23 @@ async def song_create(
     return await song_service.create_song(
         session=session, 
         song_in=song_in)
+
+@songs_router.get("/{song_id}/stream")
+async def get_stream(session: SessionDep, song_id: UUID):
+    return await song_service.get_stream_url(session=session, song_id=song_id)
+
+
+@songs_router.get("/{song_id}/cover")
+async def get_cover(session: SessionDep, song_id: UUID):
+    return await song_service.get_cover_url(session=session, song_id=song_id)
+
+
+@songs_router.get("/upload-cover-url")
+async def upload_cover(*, filename: str, file_type: str):
+    return await song_service.get_cover_upload_credentials(filename=filename, file_type=file_type)
+
+
     
-
-
 @songs_router.get(
     '/search',
     response_model=list[SongResponse],
