@@ -54,7 +54,7 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         db_obj = self.model(**obj_in_data)
 
         session.add(db_obj)
-        await session.commit()
+        await session.flush()
         await session.refresh(db_obj)
         return db_obj
 
@@ -77,7 +77,7 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 setattr(db_obj, field, update_data[field])
 
         session.add(db_obj)
-        await session.commit()
+        await session.flush()
         await session.refresh(db_obj)
         return db_obj
 
@@ -85,5 +85,5 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         obj = await self.get(session=session, id=id)
         if obj:
             await session.delete(obj)
-            await session.commit()
+            await session.flush()
         return obj

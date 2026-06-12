@@ -21,7 +21,7 @@ async def generate_presigned_put(bucket: str, key: str, content_type: str, expir
         return await client.generate_presigned_url(
             'put_object',
             Params={"Bucket": bucket, "Key": key, "ContentType": content_type},
-            Expires=expires
+            ExpiresIn=expires
         )
 
 
@@ -30,7 +30,7 @@ async def generate_presigned_get(bucket: str, key: str, expires: int) -> str:
         return await client.generate_presigned_url(
             'get_object',
             Params={"Bucket": bucket, "Key": key},
-            Expires=expires
+            ExpiresIn=expires
         )
     
 async def check_health() -> bool:

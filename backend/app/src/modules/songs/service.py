@@ -1,6 +1,5 @@
 from uuid import UUID, uuid4
 
-import aioboto3
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +11,10 @@ from src.modules.songs.models import Song
 from src.modules.songs.repository import SongRepository,song_repository 
 from src.modules.songs.schemas import SongResponse, SongCreate
 
+ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/wav", "audio/flac", "audio/ogg", "audio/aac", "audio/mp4"}
+ALLOWED_AUDIO_EXTENSIONS = {"mp3", "wav", "flac", "ogg", "aac", "m4a"}
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 
 class SongService:
     def __init__(self, repo: SongRepository):
@@ -19,20 +22,17 @@ class SongService:
     
     async def get_upload_credentials(self, filename: str, file_type: str) -> dict:
 
-        ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/wav", "audio/flac", "audio/ogg", "audio/aac", "audio/mp4"}
-        ALLOWED_AUDIO_EXTENSIONS = {"mp3", "wav", "flac", "ogg", "aac", "m4a"}
-
-        ext = filename.split('.')[-1]
+        ext = filename.split('.')[-1].lower()
 
         if file_type not in ALLOWED_AUDIO_TYPES or ext not in ALLOWED_AUDIO_EXTENSIONS:
             raise BadRequestError(f"Invalid audio format {file_type}") 
 
-        safe_filename = f"tracks/{uuid4()}.{ext}"
+        safe_filename = f"{settings.R2_TRACKS_PREFIX}/{uuid4()}.{ext}"
         
         presigned_url = await generate_presigned_put(
                 bucket=settings.R2_BUCKET,
                 key=safe_filename,
-                content=file_type,
+                content_type=file_type,
                 expires=settings.R2_PRESIGNED_URL_EXPIRE_SECONDS
             )
         
@@ -43,20 +43,17 @@ class SongService:
 
 
     async def get_cover_upload_credentials(self, filename: str, file_type: str) -> dict:
-        ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
-        ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
-
         ext = filename.split('.')[-1].lower()
 
         if file_type not in ALLOWED_IMAGE_TYPES or ext not in ALLOWED_IMAGE_EXTENSIONS:
-            raise BadRequestError(f"Invalied image type {file_type}")
+            raise BadRequestError(f"Invalid image type {file_type}")
         
         safe_filename = f"{settings.R2_COVERS_PREFIX}/{uuid4()}.{ext}"
 
         presigned_url = await generate_presigned_put(
             bucket=settings.R2_BUCKET,
             key=safe_filename,
-            content=file_type,
+            content_type=file_type,
             expires=settings.R2_PRESIGNED_URL_EXPIRE_SECONDS
         )
 

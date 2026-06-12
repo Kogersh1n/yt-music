@@ -35,17 +35,15 @@ class Settings(BaseSettings):
     R2_ACCESS_KEY_ID: str
     R2_SECRET_ACCESS_KEY: str
     R2_BUCKET: str
-    R2_LOCAL_ENDPOINT: str | None = None
-    R2_INTERNAL_ENDPOINT: str | None = None
+    R2_ENDPOINT_URL: str | None = None
     R2_PRESIGNED_URL_EXPIRE_SECONDS: int = 3600
     R2_TRACKS_PREFIX: str = "tracks"
     R2_COVERS_PREFIX: str = "covers"
 
-
     @property
     def r2_endpoint_url(self) -> str:
-        if self.R2_LOCAL_ENDPOINT:
-            return self.R2_LOCAL_ENDPOINT
+        if self.R2_ENDPOINT_URL:
+            return self.R2_ENDPOINT_URL
 
         return f"https://{self.R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
