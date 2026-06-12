@@ -1,7 +1,6 @@
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
-from src.core.config import settings
 from src.modules.users.enums import UserRole
 
 

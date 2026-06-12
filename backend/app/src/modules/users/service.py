@@ -16,19 +16,20 @@ class UserService:
     async def get_user(self, session: AsyncSession, *, user_id: UUID) -> UserResponse:
         user = await self.repo.get(session, id=user_id)
 
-        # if user is None:
-        #     ra
+        if user is None:
+            raise NotFoundeError("User", str(user_id))
 
         return UserResponse.model_validate(user)
     
     async def get_user_by_email(self, session: AsyncSession, *, email: str) -> UserResponse:
         user = await self.repo.get_by_email(session, email=email)
-        #if user is None:
+        if user is None:
+            raise NotFoundError("User", str(email))
 
         return UserResponse.model_validate(user)
 
-    async def user_exists(self, session: AsyncSession, *, email: str, name: str) -> bool:
-        return await self.repo.exists_by_username_or_email(session, email=email, name=name)
+    async def user_exists(self, session: AsyncSession, *, email: str, username: str) -> bool:
+        return await self.repo.exists_by_username_or_email(session, email=email, username=username)
     
 
 

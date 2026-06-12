@@ -8,7 +8,7 @@ from sqlalchemy import (
     text
 )
 
-from sqlalchemy.orm import mapped_column,Mapped, relationship
+from sqlalchemy.orm import mapped_column,Mapped
 
 from src.db.base import Base
 

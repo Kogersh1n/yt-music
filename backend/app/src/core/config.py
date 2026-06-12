@@ -1,4 +1,4 @@
-from pydantic import EmailStr,SecretStr
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 

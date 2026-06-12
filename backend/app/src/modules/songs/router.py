@@ -27,7 +27,7 @@ async def get_all_songs(
     '/upload-url'
 )
 async def upload_url(
-    session: Session_Dep, *, 
+    *, 
     filename: str,
     file_type: str            
 ):
