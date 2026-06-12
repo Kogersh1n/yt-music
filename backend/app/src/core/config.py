@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     R2_AVATARS_BUCKET: str | None = None
     R2_LOCAL_ENDPOINT: str | None = None
     R2_INTERNAL_ENDPOINT: str | None = None
+    R2_PRESIGNED_URL_EXPIRE_SECONDS: int = 3600
+    R2_TRACKS_PREFIX: str = "tracks"
+    R2_COVERS_PREFIX: str = "covers"
 
 
     @property

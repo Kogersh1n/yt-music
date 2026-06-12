@@ -6,9 +6,10 @@ from typing import Annotated
 from src.db.session import get_async_session
 from src.modules.songs.schemas import SongResponse,SongCreate
 from src.modules.songs.service import song_service 
+from src.core.deps import SessionDep
+
 
 songs_router = APIRouter(prefix='/songs', tags=['song'])
-Session_Dep = Annotated[AsyncSession, Depends(get_async_session)]
 
 
 @songs_router.get(
@@ -16,7 +17,7 @@ Session_Dep = Annotated[AsyncSession, Depends(get_async_session)]
     response_model=list[SongResponse]
 )
 async def get_all_songs(
-    session: Session_Dep,
+    session: SessionDep,
     limit: int = Query(50, ge=1, le=100),
     page: int = Query(1, ge=1)
     ):
@@ -45,7 +46,7 @@ async def upload_url(
     status_code=status.HTTP_201_CREATED
     )
 async def song_create(
-    session: Session_Dep,
+    session: SessionDep,
     song_in: SongCreate
 ):
     return await song_service.create_song(
@@ -58,5 +59,5 @@ async def song_create(
     '/search',
     response_model=list[SongResponse],
 )
-async def search(session: Session_Dep, q: str = Query(min_length=1)):
+async def search(session: SessionDep, q: str = Query(min_length=1)):
     return await song_service.search_songs(session=session, query=q)
