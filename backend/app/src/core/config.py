@@ -34,9 +34,7 @@ class Settings(BaseSettings):
     R2_ACCOUNT_ID: str
     R2_ACCESS_KEY_ID: str
     R2_SECRET_ACCESS_KEY: str
-    R2_SONGS_BUCKET: str
-    R2_COVERS_BUCKET: str
-    R2_AVATARS_BUCKET: str | None = None
+    R2_BUCKET: str
     R2_LOCAL_ENDPOINT: str | None = None
     R2_INTERNAL_ENDPOINT: str | None = None
     R2_PRESIGNED_URL_EXPIRE_SECONDS: int = 3600

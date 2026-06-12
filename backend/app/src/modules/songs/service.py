@@ -5,6 +5,8 @@ import aioboto3
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
+from src.core.exceptions import NotFoundError,BadRequestError
+from src.integrations.s3 import generate_presigned_get, generate_presigned_put
 
 from src.modules.songs.models import Song
 from src.modules.songs.repository import SongRepository,song_repository 
@@ -16,35 +18,80 @@ class SongService:
         self.repo = repo
     
     async def get_upload_credentials(self, filename: str, file_type: str) -> dict:
-        
-        # if not file_type.startswith('audio/'):
-        #     raise HTTP
-        ext = filename.split('.')[-1]
-        safe_filename = f"tracks/{uuid4()}.{ext}"
 
-        session = aioboto3.Session()
-        async with session.client(
-            's3',
-            endpoint_url = settings.r2_endpoint_url,
-            aws_access_key_id = settings.R2_ACCESS_KEY_ID,
-            aws_secret_access_key = settings.R2_SECRET_ACCESS_KEY,
-            region_name = 'auto'
-        ) as s3_client:
-            
-            presigned_url = await  s3_client.generate_presigned_url(
-                ClientMethod = 'put_object',
-                Params = {
-                    'Bucket': settings.R2_SONGS_BUCKET,
-                    'Key': safe_filename,
-                    'ContentType': file_type
-                },
-                ExpiresIn = 3600
+        ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/wav", "audio/flac", "audio/ogg", "audio/aac", "audio/mp4"}
+        ALLOWED_AUDIO_EXTENSIONS = {"mp3", "wav", "flac", "ogg", "aac", "m4a"}
+
+        ext = filename.split('.')[-1]
+
+        if file_type not in ALLOWED_AUDIO_TYPES or ext not in ALLOWED_AUDIO_EXTENSIONS:
+            raise BadRequestError(f"Invalid audio format {file_type}") 
+
+        safe_filename = f"tracks/{uuid4()}.{ext}"
+        
+        presigned_url = await generate_presigned_put(
+                bucket=settings.R2_BUCKET,
+                key=safe_filename,
+                content=file_type,
+                expires=settings.R2_PRESIGNED_URL_EXPIRE_SECONDS
             )
         
         return {
             'upload_url': presigned_url,
             'file_key': safe_filename
         }
+
+
+    async def get_cover_upload_credentials(self, filename: str, file_type: str) -> dict:
+        ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+        ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
+
+        ext = filename.split('.')[-1].lower()
+
+        if file_type not in ALLOWED_IMAGE_TYPES or ext not in ALLOWED_IMAGE_EXTENSIONS:
+            raise BadRequestError(f"Invalied image type {file_type}")
+        
+        safe_filename = f"{settings.R2_COVERS_PREFIX}/{uuid4()}.{ext}"
+
+        presigned_url = await generate_presigned_put(
+            bucket=settings.R2_BUCKET,
+            key=safe_filename,
+            content=file_type,
+            expires=settings.R2_PRESIGNED_URL_EXPIRE_SECONDS
+        )
+
+        return {
+            "upload_url": presigned_url,
+            "file_key": safe_filename
+        }
+
+    
+    async def get_stream_url(self, session: AsyncSession, song_id: UUID) -> dict:
+        song = await self.repo.get(session=session, id=song_id)
+        if song is None:
+            raise NotFoundError("Song", str(song_id))
+
+        stream_url= await generate_presigned_get(
+            bucket=settings.R2_BUCKET,
+            key=song.audio_file_key,
+            expires=settings.R2_PRESIGNED_URL_EXPIRE_SECONDS
+        )
+        return {"stream_url": stream_url, "duration": song.duration}
+
+
+    async def get_cover_url(self, session: AsyncSession, song_id: UUID) -> dict:
+        song = await self.repo.get(session=session, id=song_id)
+        if song is None:
+            raise NotFoundError("Song", str(song_id))
+        if song.cover_file_key is None:
+            return {"cover_url": None}
+
+        cover_url = await generate_presigned_get(
+            bucket=settings.R2_BUCKET,
+            key=song.cover_file_key,
+            expires=settings.R2_PRESIGNED_URL_EXPIRE_SECONDS
+        )
+        return {"cover_url": cover_url}
 
     
     async def get_all_songs(self, session: AsyncSession, limit: int, page: int):
