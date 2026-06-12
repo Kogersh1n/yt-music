@@ -30,5 +30,5 @@ app.include_router(users_router)
 
 
 @app.get("/")
-def read_root():
+async def read_root():
     return {"status": "ok", "message": "YouTube Music Clone API"}

@@ -18,8 +18,8 @@ class SongCreate(SongBase):
 
 
 class SongUpdate(BaseModel):
-    title: str | None
-    author: str | None
+    title: str | None = None
+    author: str | None = None
 
 
 class SongResponse(SongBase):

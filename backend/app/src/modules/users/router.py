@@ -2,7 +2,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio.session import AsyncSession
 
-from fastapi import Depends, APIRouter
+from fastapi import Depends, APIRouter,HTTPException
 from pydantic.types import Annotated
 
 from src.db.session import get_async_session
@@ -15,6 +15,6 @@ Session_Dep = Annotated[AsyncSession, Depends(get_async_session)]
 @users_router.get(
     '/me',
 )
-async def get_me(session: Session_Dep):
-    return 
+async def get_me():
+    raise HTTPException(501, detail="Not implemented")
 
