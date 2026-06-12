@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 from sqlalchemy.ext.asyncio.session import AsyncSession
 
 from src.core.config import settings
+from src.core.exceptions import NotFoundError
 
 from src.modules.users.models import User
 from src.modules.users.repository import UserRepository, user_repo
@@ -17,7 +18,7 @@ class UserService:
         user = await self.repo.get(session, id=user_id)
 
         if user is None:
-            raise NotFoundeError("User", str(user_id))
+            raise NotFoundError("User", str(user_id))
 
         return UserResponse.model_validate(user)
     
