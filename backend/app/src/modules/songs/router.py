@@ -62,7 +62,7 @@ async def song_create(
 async def get_all_songs(
     session: SessionDep,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
-    cursor: Annotated[str | None, Query(None, description="Base64 encoded cursor for pagination")] = None
+    cursor: Annotated[str | None, Query(description="Base64 encoded cursor for pagination")] = None
     ):
     return await song_service.get_all_songs(session=session, limit=limit, cursor=cursor)
 
