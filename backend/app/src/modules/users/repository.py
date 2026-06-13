@@ -1,9 +1,9 @@
-from sqlalchemy import select
+from sqlalchemy import select, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.repository import BaseRepository
 from src.modules.users.models import User
-from src.modules.users.schemas import UserCreate,UserUpdate
+from src.modules.users.schemas import UserCreate, UserUpdate
 
 
 class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
@@ -22,16 +22,19 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
     
     async def exists_by_username_or_email(
             self,
-            session:AsyncSession,
+            session: AsyncSession,
             *,
             username: str,
             email: str
     ) -> bool:
-        query = select(User).where(
-            (User.email == email) | (User.username == username)
-        )
+        query = select(
+            exists(User).where((User.email == email) | (User.username == username)
+        ))
+
         result = await session.execute(query)
-        return result.scalars().first() is not None
+        return bool(result.scalar())
+    
+    
 
 
 user_repo = UserRepository()

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
 from src.core.exceptions import NotFoundError,BadRequestError
-from src.integrations.s3 import generate_presigned_get, generate_presigned_put
+from src.integrations.s3 import generate_presigned_get, generate_presigned_put, delete_object
 
 from src.modules.songs.models import Song
 from src.modules.songs.repository import SongRepository,song_repository 
@@ -93,6 +93,28 @@ class SongService:
     
     async def get_all_songs(self, session: AsyncSession, limit: int, page: int):
         return await self.repo.get_all(session=session, limit=limit, page=page)
+    
+
+    async def get_song(self, session: AsyncSession, song_id: UUID):
+        song = await self.repo.get(session=session, id=song_id)
+        if song is None:
+            raise NotFoundError("Song", str(song_id))
+        
+        return song
+    
+    async def delete_song(self, session: AsyncSession, song_id: UUID):
+        song = await self.repo.get(session=session, id=song_id)
+        if song is None:
+            raise NotFoundError("Song", str(song_id))
+        
+        await self.repo.delete(session=session, id=song_id)
+        await session.flush()
+
+        await delete_object(bucket=settings.R2_BUCKET, key=song.audio_file_key)
+
+        if song.cover_file_key:
+            await delete_object(bucket=settings.R2_COVERS_BUCKET, key=song.cover_file_key)
+
 
     async def create_song(self, session: AsyncSession, song_in: SongCreate):
         return await self.repo.create(session=session, obj_in=song_in)
