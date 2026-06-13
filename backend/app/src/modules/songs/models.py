@@ -5,7 +5,8 @@ from sqlalchemy import (
     DateTime,
     func,
     String,
-    text
+    text,
+    Index
 )
 
 from sqlalchemy.orm import mapped_column,Mapped
@@ -37,6 +38,10 @@ class Song(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index('idx_song_created_at_id', 'created_at', 'id'),
     )
 
 

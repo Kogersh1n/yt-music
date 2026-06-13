@@ -5,11 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
 from src.core.exceptions import NotFoundError,BadRequestError
+from src.core.pagination import decode_cursor, encode_cursor
 from src.integrations.s3 import generate_presigned_get, generate_presigned_put, delete_object
 
 from src.modules.songs.models import Song
 from src.modules.songs.repository import SongRepository,song_repository 
-from src.modules.songs.schemas import SongResponse, SongCreate
+from src.modules.songs.schemas import SongCreate
+
 
 ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/wav", "audio/flac", "audio/ogg", "audio/aac", "audio/mp4"}
 ALLOWED_AUDIO_EXTENSIONS = {"mp3", "wav", "flac", "ogg", "aac", "m4a"}
@@ -90,9 +92,49 @@ class SongService:
         )
         return {"cover_url": cover_url}
 
-    
-    async def get_all_songs(self, session: AsyncSession, limit: int, page: int):
-        return await self.repo.get_all(session=session, limit=limit, page=page)
+
+    async def get_all_songs(self, session: AsyncSession, cursor: None | str, limit: int):
+        # return await self.repo.get_all(session=session, limit=limit)
+        cursor_created_at = None
+        cursor_id = None
+
+        if cursor is not None:
+            cursor_created_at, cursor_id = decode_cursor(cursor)
+        
+        songs = await self.repo.get_all_by_cursor(
+                session=session,
+                limit=limit,
+                cursor_created_at=cursor_created_at,
+                cursor_id=cursor_id
+            )
+        if len(songs) > limit:
+            has_more = True
+            songs_to_return = songs[:limit]
+
+            last_song = songs_to_return[-1]
+
+            next_cursor = encode_cursor(created_at=last_song.created_at, item_id=last_song.id)
+
+
+        else:
+            has_more = False
+            songs_to_return = songs
+            next_cursor = None
+        
+        return {
+            "items": songs_to_return,
+            "next_cursor": next_cursor,
+            "has_more": has_more
+        }
+        
+
+
+            
+        
+            
+
+
+
     
 
     async def get_song(self, session: AsyncSession, song_id: UUID):

@@ -1,5 +1,5 @@
 from uuid import UUID
-
+from typing import Annotated
 from fastapi import APIRouter,status,Query
 
 from src.modules.songs.schemas import *
@@ -57,14 +57,14 @@ async def song_create(
 
 @songs_router.get(
     '/',
-    response_model=list[SongResponse]
+    response_model=SongPaginationResponse
 )
 async def get_all_songs(
     session: SessionDep,
-    limit: int = Query(50, ge=1, le=100),
-    page: int = Query(1, ge=1)
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[str | None, Query(None, description="Base64 encoded cursor for pagination")] = None
     ):
-    return await song_service.get_all_songs(session=session, limit=limit, page=page)
+    return await song_service.get_all_songs(session=session, limit=limit, cursor=cursor)
 
 
 @songs_router.get(
