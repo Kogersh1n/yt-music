@@ -1,6 +1,8 @@
 import aioboto3
+from src.core.exceptions import ExternalServiceError
 from contextlib import asynccontextmanager
 from src.core.config import settings
+
 
 _s3_session = aioboto3.Session()
 
@@ -32,6 +34,13 @@ async def generate_presigned_get(bucket: str, key: str, expires: int) -> str:
             Params={"Bucket": bucket, "Key": key},
             ExpiresIn=expires
         )
+
+async def delete_object(bucket: str, key: str):
+    async with get_s3_client() as client:
+        try:
+            await client.delete_object(Bucket=bucket, key=key)
+        except Exception:
+            raise ExternalServiceError('Failed delete file from storage')
     
 async def check_health() -> bool:
     try:

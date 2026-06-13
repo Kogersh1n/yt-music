@@ -32,3 +32,17 @@ class SongResponse(SongBase):
     cover_file_key: str | None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UploadCredentialsResponse(BaseModel):
+    upload_url: str
+    file_key: str
+
+
+class SongStreamResponse(BaseModel):
+    stream_url: str
+    duration: int
+
+
+class SongCoverResponse(BaseModel):
+    cover_url: str | None
