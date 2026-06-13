@@ -34,6 +34,8 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
         result = await session.execute(query)
         return bool(result.scalar())
     
+
+    
     
 
 

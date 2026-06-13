@@ -46,3 +46,9 @@ class SongStreamResponse(BaseModel):
 
 class SongCoverResponse(BaseModel):
     cover_url: str | None
+
+
+class SongPaginationResponse(BaseModel):
+    items: list[SongResponse]
+    next_cursor: str | None
+    has_more: bool
