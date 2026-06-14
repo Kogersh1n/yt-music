@@ -1,4 +1,5 @@
 import aioboto3
+import aiofiles
 from src.core.exceptions import ExternalServiceError
 from contextlib import asynccontextmanager
 from src.core.config import settings
@@ -38,9 +39,24 @@ async def generate_presigned_get(bucket: str, key: str, expires: int) -> str:
 async def delete_object(bucket: str, key: str):
     async with get_s3_client() as client:
         try:
-            await client.delete_object(Bucket=bucket, key=key)
+            await client.delete_object(Bucket=bucket, Key=key)
         except Exception:
             raise ExternalServiceError('Failed delete file from storage')
+
+async def upload_file_object(bucket: str, key: str, file_path: str):
+    async with get_s3_client() as client:
+        try:
+            async with aiofiles.open(file_path, mode='rb') as f:
+                file_data = await f.read()
+            
+            await client.put_object(
+                Bucket=bucket,
+                Key=key,
+                Body=file_data
+            )
+        except Exception:
+            raise ExternalServiceError('Failed to upload file to storage')
+            
     
 async def check_health() -> bool:
     try:

@@ -1,16 +1,22 @@
+import os
 from uuid import UUID, uuid4
-
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
 from src.core.exceptions import NotFoundError,BadRequestError
 from src.core.pagination import decode_cursor, encode_cursor
-from src.integrations.s3 import generate_presigned_get, generate_presigned_put, delete_object
+from src.integrations.s3 import (
+    generate_presigned_get,
+    generate_presigned_put,
+    delete_object,
+    upload_file_object
+    )
 
 from src.modules.songs.models import Song
 from src.modules.songs.repository import SongRepository,song_repository 
 from src.modules.songs.schemas import SongCreate
+from src.modules.songs.utils import download_youtube_audio, download_thumbnail
 
 
 ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/wav", "audio/flac", "audio/ogg", "audio/aac", "audio/mp4"}
@@ -127,15 +133,57 @@ class SongService:
             "has_more": has_more
         }
         
+    
+    async def import_from_youtube(self, session: AsyncSession, url: str) -> dict:
+        audio_path = None
+        cover_path = None
 
+        try:
+            meta = await download_youtube_audio(url=url)
+            audio_path = meta['file_path']
+            video_id = audio_path.split("/")[-1].replace(".mp3", "")
 
-            
+            cover_path = await download_thumbnail(url=meta['thumbnail_url'], video_id=video_id)
+
+            r2_audio_key = f'{settings.R2_TRACKS_PREFIX}/{video_id}.mp3'
+            r2_cover_key = f'{settings.R2_COVERS_PREFIX}/{video_id}.jpg'
+
+            await upload_file_object(
+                bucket=settings.R2_BUCKET,
+                key=r2_audio_key,
+                file_path=audio_path
+            )
+
+            await upload_file_object(
+                bucket=settings.R2_BUCKET,
+                key=r2_cover_key,
+                file_path=cover_path
+            )
+
+            song = SongCreate(
+                title=meta['title'],
+                duration=meta['duration'],
+                author=meta['author'],
+                audio_file_key=r2_audio_key,
+                cover_file_key=r2_cover_key
+            )
+
+            await self.repo.create(session=session, obj_in=song)
+
+            return {'status': 'success', 'title': meta['title']}
+        except Exception as e:
+            raise e
+        finally:
+            if audio_path and os.path.exists(audio_path):
+                os.remove(audio_path)
+            if cover_path and os.path.exists(cover_path):
+                os.remove(cover_path)
+                
         
             
 
 
 
-    
 
     async def get_song(self, session: AsyncSession, song_id: UUID):
         song = await self.repo.get(session=session, id=song_id)
@@ -155,7 +203,7 @@ class SongService:
         await delete_object(bucket=settings.R2_BUCKET, key=song.audio_file_key)
 
         if song.cover_file_key:
-            await delete_object(bucket=settings.R2_COVERS_BUCKET, key=song.cover_file_key)
+            await delete_object(bucket=settings.R2_BUCKET, key=song.cover_file_key)
 
 
     async def create_song(self, session: AsyncSession, song_in: SongCreate):
