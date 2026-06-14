@@ -67,6 +67,13 @@ async def get_all_songs(
     return await song_service.get_all_songs(session=session, limit=limit, cursor=cursor)
 
 
+@songs_router.post(
+        '/import/youtube'
+)
+async def import_from_youtube(session: SessionDep, import_data: SongYoutubeImport):
+    return await song_service.import_from_youtube(session=session, url=import_data.query)
+
+
 @songs_router.get(
         '/{song_id}',
         response_model=SongResponse

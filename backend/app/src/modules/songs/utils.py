@@ -5,16 +5,26 @@ import httpx
 from fastapi import HTTPException
 
 async def download_youtube_audio(url: str) -> dict:    
+    if not (url.startswith('https://') or url.startswith('http://')):
+        url = f'ytsearch1:{url}'
+
     meta_opts = {
         'skip_download': True,
         'extract_flat': False,
     }
+
     
     def extract_meta():
         with yt_dlp.YoutubeDL(meta_opts) as ydl:
             return ydl.extract_info(url, download=False)
             
     info = await asyncio.to_thread(extract_meta)
+
+    if info.get('_type') == 'playlist' or 'entries' in info:
+        if info['entries']:
+            info = info['entries'][0]
+        else:
+            raise HTTPException(status_code=404, detail='song not found')
     
     duration = info.get('duration', 0)
     if duration > 600:
