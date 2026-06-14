@@ -52,3 +52,9 @@ class SongPaginationResponse(BaseModel):
     items: list[SongResponse]
     next_cursor: str | None
     has_more: bool
+
+class SongYoutubeImport(BaseModel):
+    query: str 
+    title: str | None = None
+    author: str | None = None
+    
