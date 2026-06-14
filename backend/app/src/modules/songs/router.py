@@ -77,7 +77,7 @@ async def get_song(session: SessionDep, song_id: UUID):
 @songs_router.delete(
         '/{song_id}',
 )
-async def delete_song(session: SessionDep, song_id: int):
+async def delete_song(session: SessionDep, song_id: UUID):
     await song_service.delete_song(session=session, song_id=song_id)
 
 
