@@ -1,13 +1,10 @@
+import type { ApiSong } from "../api/songs";
+
 // src/components/SongCard.tsx
-interface Song {
-  id: number;
-  title: string;
-  author: string;
-  url: string;
-}
+
 
 interface SongCardProps {
-  song: Song;
+  song: ApiSong;
   isActive: boolean;
   onClick: () => void;
 }

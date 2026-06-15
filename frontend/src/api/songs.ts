@@ -33,7 +33,7 @@ export function getSongStream(songId: string): Promise<StreamResponse> {
 }
 
 export function getSongCover(songId: string): Promise<CoverResponse> {
-    return apiClient<CoverResponse>(`/songs/${songId}cover`);
+    return apiClient<CoverResponse>(`/songs/${songId}/cover`);
 }
 
 export function importSongFromYoutube(query: string): Promise<{ message: string; song_id? : string }> {

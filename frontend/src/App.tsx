@@ -3,6 +3,7 @@ import {useState, useEffect, useRef} from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 import {useSongs} from './features/songs/useSong.ts'
+import {getSongStream, type ApiSong}  from './api/songs.ts';
 
 
 import Layout from './components/Layout.tsx';
@@ -10,18 +11,17 @@ import HomePage from './pages/HomePage';
 import SearchPage from './pages/SearchPage';
 import LibraryPage from './pages/LibraryPage';
 
-interface Song {
-  id: number;
-  title: string;
-  author: string;
+interface PlayingSong extends ApiSong {
   url: string;
 }
 
 function App() {
   const { songs, isLoading, error } = useSongs();
-  const [currentSong, setCurrentSong] = useState<Song | null>(null)
+  const [currentSong, setCurrentSong] = useState<PlayingSong | null>(null)
 
   const [isPlaying, setIsPlaying] = useState(false)
+
+  const [isStreamLoading, setIsStreamLoading] = useState(false)
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -38,6 +38,26 @@ function App() {
     }
   }
 
+  const handleSongSelect = async (song: ApiSong ) => {
+    setIsStreamLoading(true);
+
+    try {
+      const streamData = await getSongStream(song.id)
+
+      const songToPlay: PlayingSong = {
+        ...song,
+        url: streamData.stream_url
+      };
+
+      setCurrentSong(songToPlay);
+    } catch(err) {
+      console.error('Ошибка стриминга трека:', err);
+      alert('Не удалось загрузить аудиопоток. Возможно, ссылка истекла.');
+    } finally {
+      setIsStreamLoading(false);
+    }
+
+  };
 
   useEffect(() => {
     if (currentSong && audioRef.current){
@@ -45,6 +65,7 @@ function App() {
       setIsPlaying(true);
     }
   }, [currentSong]);
+
 
   // useEffect(() => {
   //   fetch('http://localhost:8000/songs')
@@ -105,7 +126,7 @@ function App() {
                 <HomePage 
                   songs={songs} 
                   currentSong={currentSong} 
-                  onSongSelect={setCurrentSong} 
+                  onSongSelect={handleSongSelect} 
                 />
               } 
             />
