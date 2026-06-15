@@ -1,15 +1,13 @@
 // src/components/Player.tsx
 import {useState, useEffect} from 'react';
+import type { ApiSong } from '../api/songs';
 
-interface Song {
-    id: number
-    title: string
-    author: string
+interface PlayingSong extends ApiSong {
     url: string
 }
 
 interface PlayerProps {
-    currentSong: Song | null
+    currentSong: PlayingSong | null
     togglePlay: () => void
     isPlaying: boolean
     audioRef: React.RefObject<HTMLAudioElement | null>

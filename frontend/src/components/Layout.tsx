@@ -1,19 +1,18 @@
 import {Outlet} from 'react-router-dom'
 
+import { type ApiSong } from '../api/songs.ts'
+
 import Header from './Header.tsx'
 import Sidebar from './Sidebar.tsx'
 import Player from './Player.tsx'
 
-interface Song {
-    id: number;
-    title: string;
-    author: string;
+interface PlayingSong extends ApiSong{
     url: string;
 }
 
 interface LayoutProps {
     isPlaying: boolean
-    currentSong: Song | null
+    currentSong: PlayingSong | null
     togglePlay: () => void
     audioRef: React.RefObject<HTMLAudioElement | null>;
 }

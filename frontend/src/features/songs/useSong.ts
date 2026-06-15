@@ -20,7 +20,13 @@ export function useSongs() {
         try {
             const data = await loadSongs(currentCursor)
 
-            setSongs(data.items);
+            if (currentCursor){
+                setSongs((prev) => [...prev, ...data.items]);  
+            }
+            else {
+                setSongs(data.items);1
+            }
+
             setCursor(data.next_cursor);
             setHasMore(data.has_more);            
         } catch (err: any) {
@@ -57,28 +63,5 @@ export function useSongs() {
         hasMore,
         load_more: () => hasMore && fetchSongs(cursor),
     };
-
-
-    // useEffect(() => {
-    //     async function fetchSongs() {
-    //         try {
-    //             setIsLoading(false);
-    //             setError(null);
-
-    //             const data = await loadSongs(); // loadSongs return massive of songs from api
-                
-    //             setSongs(data); // then we store then into state
-                
-            
-    //         }catch (err: any) {
-    //             setError(err.message || 'Cant load songs');
-    //         }
-    //         finally {
-    //             setIsLoading(false);
-    //         };
-    //     }
-    //     fetchSongs();
-
-    // }, []);
 
 }

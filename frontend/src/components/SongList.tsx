@@ -1,17 +1,12 @@
 // src/components/SongList.tsx
+import type { ApiSong } from '../api/songs.ts'
 import SongCard from './SongCard.tsx'
 
-interface Song {
-    id: number
-    title: string
-    author: string
-    url: string
-}
 
 interface SongListProps {
-    songs: Song[]
-    currentSong: Song | null
-    onSongSelect: (song: Song) => void
+    songs: ApiSong[]
+    currentSong: ApiSong | null
+    onSongSelect: (song: ApiSong) => void
 }
 
 function SongList({songs, currentSong, onSongSelect}: SongListProps){
