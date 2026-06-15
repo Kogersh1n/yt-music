@@ -10,13 +10,13 @@ interface HomePageProps {
 
 function HomePage({songs, currentSong, onSongSelect}: HomePageProps){
     return (
-    <main className="flex-1 overflow-y-auto p-4 md:p-8">
-      <SongList
+    <section>
+        <SongList
       songs={songs}
       currentSong={currentSong}
       onSongSelect={onSongSelect}
       />
-    </main>
+    </section>
 
     )
 }

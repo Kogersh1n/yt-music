@@ -1,14 +1,11 @@
 import {Outlet} from 'react-router-dom'
-
-import { type ApiSong } from '../api/songs.ts'
+import type { PlayingSong } from '../types/song.ts';
 
 import Header from './Header.tsx'
 import Sidebar from './Sidebar.tsx'
 import Player from './Player.tsx'
 
-interface PlayingSong extends ApiSong{
-    url: string;
-}
+
 
 interface LayoutProps {
     isPlaying: boolean

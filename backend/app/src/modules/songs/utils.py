@@ -11,6 +11,7 @@ async def download_youtube_audio(url: str) -> dict:
     meta_opts = {
         'skip_download': True,
         'extract_flat': False,
+        'noplaylist': True
     }
 
     

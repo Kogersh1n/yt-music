@@ -24,7 +24,7 @@ export function useSongs() {
                 setSongs((prev) => [...prev, ...data.items]);  
             }
             else {
-                setSongs(data.items);1
+                setSongs(data.items);
             }
 
             setCursor(data.next_cursor);

@@ -1,10 +1,6 @@
 // src/components/Player.tsx
 import {useState, useEffect} from 'react';
-import type { ApiSong } from '../api/songs';
-
-interface PlayingSong extends ApiSong {
-    url: string
-}
+import type { PlayingSong } from '../types/song.ts';
 
 interface PlayerProps {
     currentSong: PlayingSong | null
@@ -19,7 +15,7 @@ const formatTime = (time: number) => {
   const minutes = Math.floor(time / 60);
   const seconds = Math.floor(time % 60)
 
-  return `${minutes}: ${seconds < 10 ? '0' : ''}${seconds}`
+  return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`
 }
 
 function Player({currentSong, togglePlay, isPlaying, audioRef}: PlayerProps){
@@ -85,6 +81,12 @@ function Player({currentSong, togglePlay, isPlaying, audioRef}: PlayerProps){
               className="w-12 h-12 flex items-center justify-center rounded-full hover:scale-105 active:scale-95 transition-transform font-bold text-lg">
                 {isPlaying ? '||': '▶'}
               </button>
+
+              <img 
+                src={currentSong.cover_url || "https://placehold.co/150x150?text=No+Cover"} 
+                alt={currentSong.title}
+                className="w-12 h-12 rounded object-cover flex-shrink-0 bg-zinc-800 border border-zinc-800"
+              />
             </div>
 
           {/* Central part */}

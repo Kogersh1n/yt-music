@@ -19,6 +19,19 @@ async def get_s3_client():
         yield client
 
 
+@asynccontextmanager
+async def get_s3_public_client():
+    """Клиент с публичным endpoint — для presigned GET URL, которые пойдут в браузер."""
+    async with _s3_session.client(
+        's3',
+        endpoint_url=settings.r2_public_endpoint_url,
+        aws_access_key_id=settings.R2_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
+        region_name='auto'
+    ) as client:
+        yield client
+
+
 async def generate_presigned_put(bucket: str, key: str, content_type: str, expires: int) -> str:
     async with get_s3_client() as client:
         return await client.generate_presigned_url(
@@ -29,7 +42,7 @@ async def generate_presigned_put(bucket: str, key: str, content_type: str, expir
 
 
 async def generate_presigned_get(bucket: str, key: str, expires: int) -> str:
-    async with get_s3_client() as client:
+    async with get_s3_public_client() as client:
         return await client.generate_presigned_url(
             'get_object',
             Params={"Bucket": bucket, "Key": key},
@@ -41,7 +54,7 @@ async def delete_object(bucket: str, key: str):
         try:
             await client.delete_object(Bucket=bucket, Key=key)
         except Exception:
-            raise ExternalServiceError('Failed delete file from storage')
+            raise ExternalServiceError('R2', 'Failed delete file from storage')
 
 async def upload_file_object(bucket: str, key: str, file_path: str):
     async with get_s3_client() as client:
@@ -55,7 +68,7 @@ async def upload_file_object(bucket: str, key: str, file_path: str):
                 Body=file_data
             )
         except Exception:
-            raise ExternalServiceError('Failed to upload file to storage')
+            raise ExternalServiceError('R2', 'Failed to upload file to storage')
             
     
 async def check_health() -> bool:

@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     R2_ACCESS_KEY_ID: str
     R2_SECRET_ACCESS_KEY: str
     R2_BUCKET: str
+    R2_PUBLIC_ENDPOINT_URL: str | None = None
     R2_ENDPOINT_URL: str | None = None
     R2_PRESIGNED_URL_EXPIRE_SECONDS: int = 3600
     R2_TRACKS_PREFIX: str = "tracks"
@@ -46,6 +47,11 @@ class Settings(BaseSettings):
             return self.R2_ENDPOINT_URL
 
         return f"https://{self.R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+    
+    @property
+    def r2_public_endpoint_url(self) -> str:
+        """URL, который получит браузер. Для local dev = http://localhost:9000"""
+        return self.R2_PUBLIC_ENDPOINT_URL or self.r2_endpoint_url
 
     @property
     def db_url(self) -> URL:
