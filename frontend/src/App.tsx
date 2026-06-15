@@ -3,7 +3,8 @@ import {useState, useEffect, useRef} from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 import {useSongs} from './features/songs/useSong.ts'
-import {getSongStream, type ApiSong}  from './api/songs.ts';
+import {getSongStream, getSongCover, type ApiSong}  from './api/songs.ts';
+import type { PlayingSong } from './types/song.ts';
 
 
 import Layout from './components/Layout.tsx';
@@ -11,9 +12,6 @@ import HomePage from './pages/HomePage';
 import SearchPage from './pages/SearchPage';
 import LibraryPage from './pages/LibraryPage';
 
-interface PlayingSong extends ApiSong {
-  url: string;
-}
 
 function App() {
   const { songs, isLoading, error } = useSongs();
@@ -42,11 +40,15 @@ function App() {
     setIsStreamLoading(true);
 
     try {
-      const streamData = await getSongStream(song.id)
+        const [streamData, coverData] = await Promise.all([
+        getSongStream(song.id),
+        getSongCover(song.id),
+      ]);
 
       const songToPlay: PlayingSong = {
         ...song,
-        url: streamData.stream_url
+        url: streamData.stream_url,
+        cover_url: coverData.cover_url,
       };
 
       setCurrentSong(songToPlay);

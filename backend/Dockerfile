@@ -9,7 +9,8 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # Install basic system tools (curl can be used for container healthchecks)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    nodejs \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -27,4 +28,4 @@ EXPOSE 8000
 WORKDIR /app/app
 
 # Run migrations, then start the application
-CMD alembic upgrade head && uvicorn src.main:app --host 0.0.0.0 --port 8000
+CMD alembic upgrade head && exec uvicorn src.main:app --host 0.0.0.0 --port 8000

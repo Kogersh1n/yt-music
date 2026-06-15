@@ -88,12 +88,12 @@ async def delete_song(session: SessionDep, song_id: UUID):
     await song_service.delete_song(session=session, song_id=song_id)
 
 
-@songs_router.get('/{song_id}/stream')
+@songs_router.get('/{song_id}/stream', response_model=SongStreamResponse)
 async def get_stream(session: SessionDep, song_id: UUID):
     return await song_service.get_stream_url(session=session, song_id=song_id)
 
 
-@songs_router.get('/{song_id}/cover')
+@songs_router.get('/{song_id}/cover', response_model=SongCoverResponse)
 async def get_cover(session: SessionDep, song_id: UUID):
     return await song_service.get_cover_url(session=session, song_id=song_id)
 
