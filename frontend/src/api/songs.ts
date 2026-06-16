@@ -23,6 +23,32 @@ export interface CoverResponse {
     cover_url: string;
 }
 
+export interface YouTubeResult {
+    song_id: string;
+    title: string;
+    author: string | null;
+    duration: number;
+    cover: string;
+    url: string;
+}
+
+export interface YouTubeSearchResponse {
+    results: YouTubeResult[];
+    query: string;
+}
+
+export function searchYouTube(query: string): Promise<YouTubeSearchResponse> {
+    return apiClient<YouTubeSearchResponse>(
+        `/songs/youtube/search?q=${encodeURIComponent(query)}`
+    );
+}
+
+export function getYouTubeStream(videoId: string): Promise<{ stream_url: string }> {
+    return apiClient<{ stream_url: string }>(
+        `/songs/youtube/stream/${videoId}`
+    );
+}
+
 export function loadSongs(cursor?: string | null): Promise<SongPaginationResponse> {
     const url = cursor ? `/songs?cursor=${encodeURIComponent(cursor)}` : '/songs';
     return apiClient<SongPaginationResponse>(url)

@@ -19,8 +19,6 @@ function App() {
 
   const [isPlaying, setIsPlaying] = useState(false)
 
-  const [isStreamLoading, setIsStreamLoading] = useState(false)
-
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const togglePlay = () => {
@@ -37,8 +35,6 @@ function App() {
   }
 
   const handleSongSelect = async (song: ApiSong ) => {
-    setIsStreamLoading(true);
-
     try {
         const [streamData, coverData] = await Promise.all([
         getSongStream(song.id),
@@ -55,10 +51,7 @@ function App() {
     } catch(err) {
       console.error('Ошибка стриминга трека:', err);
       alert('Не удалось загрузить аудиопоток. Возможно, ссылка истекла.');
-    } finally {
-      setIsStreamLoading(false);
     }
-
   };
 
   useEffect(() => {
