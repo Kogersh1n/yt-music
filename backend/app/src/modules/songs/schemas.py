@@ -57,4 +57,21 @@ class SongYoutubeImport(BaseModel):
     query: str 
     title: str | None = None
     author: str | None = None
-    
+
+
+# For search part
+
+class YouTubeSearchResult(BaseModel):
+    video_id: str
+    title: str
+    author: str | None = None
+    duration: int
+    cover: str
+    url: str
+
+class YouTubeSearchResponse(BaseModel):
+    results: list[YouTubeSearchResult]
+    query: str
+
+
+

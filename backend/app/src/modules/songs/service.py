@@ -15,8 +15,8 @@ from src.integrations.s3 import (
 
 from src.modules.songs.models import Song
 from src.modules.songs.repository import SongRepository,song_repository 
-from src.modules.songs.schemas import SongCreate
-from src.modules.songs.utils import download_youtube_audio, download_thumbnail
+from src.modules.songs.schemas import SongCreate, YouTubeSearchResponse
+from src.modules.songs.utils import download_youtube_audio, download_thumbnail, get_youtube_stream_url, search_youtube
 
 
 ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/wav", "audio/flac", "audio/ogg", "audio/aac", "audio/mp4"}
@@ -207,8 +207,12 @@ class SongService:
         return await self.repo.create(session=session, obj_in=song_in)
 
 
-    async def search_songs(self, session: AsyncSession, query: str) -> list[Song]:
-        return await self.repo.search(session=session, query_str=query)
+    async def search_songs(self, query: str) -> YouTubeSearchResponse:
+        results = await search_youtube(query=query)
+        return {"results": results, "query": query}
 
+    async def stream_without_download(self, video_id: str) -> dict:
+        return await get_youtube_stream_url(video_id=video_id)
+        
 
 song_service = SongService(repo=song_repository)
