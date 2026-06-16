@@ -26,7 +26,7 @@ export default function SearchPage() {
   };
 
   const handleDownload = async (track: YouTubeResult) => {
-    setDownloadingId(track.song_id);
+    setDownloadingId(track.video_id);
     try {
       // Отправляем прямую ссылку на YouTube-видео в наш инкубатор бэкенда
       await importTrack(track.url);
@@ -68,11 +68,11 @@ export default function SearchPage() {
         {results.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {results.map((track) => {
-            const isDownloading = downloadingId === track.song_id;
+            const isDownloading = downloadingId === track.video_id;
             
             return (
               <div 
-                key={track.song_id} 
+                key={track.video_id} 
                 className="flex items-center justify-between p-2 hover:bg-zinc-900/60 rounded-lg group transition-colors border border-transparent hover:border-zinc-900"
               >
                 {/* Инфо о треке */}

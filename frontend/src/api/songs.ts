@@ -24,7 +24,7 @@ export interface CoverResponse {
 }
 
 export interface YouTubeResult {
-    song_id: string;
+    video_id: string;
     title: string;
     author: string | null;
     duration: number;
