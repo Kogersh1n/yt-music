@@ -29,7 +29,7 @@ function SongCard ({song, isActive, onClick}: SongCardProps){
     return (
           <button
         type="button"
-         className={`flex items-center gap-4 p-3 group rounded-lg transition-colors 
+         className={`flex items-center gap-3 p-2 group rounded-lg transition-colors 
            ${isActive ? 'bg-zinc-800 border border-pink-600' : 'bg-zinc-900 hover:bg-zinc-800'}
          `}
          onClick={() => onClick()}
@@ -38,10 +38,10 @@ function SongCard ({song, isActive, onClick}: SongCardProps){
             <img 
               src={coverUrl} 
               alt={song.title}
-              className="w-12 h-12 rounded flex-shrink-0 object-cover bg-zinc-700"
+              className="w-15 h-15 rounded flex-shrink-0 object-cover bg-zinc-700"
             />
           ) : (
-            <div className="w-12 h-12 bg-zinc-700 rounded flex-shrink-0" />
+            <div className="w-10 h-10 bg-zinc-700 rounded flex-shrink-0" />
           )}
            <div className="flex-1 min-w-0">
              <h3 className="font-medium text-zinc-100 truncate">{song.title}</h3>

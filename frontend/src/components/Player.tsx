@@ -69,52 +69,65 @@ function Player({currentSong, togglePlay, isPlaying, audioRef}: PlayerProps){
           audioRef.current.volume = newVolume;
         }
       }
-
-
+    
+    const progress = duration ? (currentTime / duration) * 100 : 0;
+    
     return (
-    <footer className="h-24 bg-zinc-900 border-t flex items-center justify-center px-6 sticky bottom-0 select-none">
+
+    <footer className="h-24 bg-zinc-900 flex items-center justify-center px-6 sticky bottom-0 select-none relative">
         {currentSong ? (
           <>
-          {/* Left Side */}
-            <div className="w-[120px]  flex justify-start items-center shrink-0">
-              <button onClick={togglePlay}
-              className="w-12 h-12 flex items-center justify-center rounded-full hover:scale-105 active:scale-95 transition-transform font-bold text-lg">
-                {isPlaying ? '||': '▶'}
-              </button>
-
-              <img 
-                src={currentSong.cover_url || "https://placehold.co/150x150?text=No+Cover"} 
-                alt={currentSong.title}
-                className="w-12 h-12 rounded object-cover flex-shrink-0 bg-zinc-800 border border-zinc-800"
-              />
-            </div>
-
-          {/* Central part */}
-            <div className="w-[500px] mx-auto flex flex-col items-center gap-2 px-4 shrink-0">
-              <div className="text-center min-w-0">
-                  <p className="font-semibold text-sm text-zinc-100 truncate">Сейчас играет {currentSong.title}</p>
-                  <p className="text-xs text-zinc-400 truncate">Исполнитель: {currentSong.author}</p>
-              </div>
-
             {/* Slider Part */}
 
-              <div className="w-full flex items-center gap-3 text-xs text-zinc-400 font-mono">
-                  <span className="shrink-0">{formatTime(currentTime)}</span>
-
+              <div className="absolute -top-[6px] left-0 right-0 w-full z-10 h-3">
                   <input
                       type='range'
                       min={0}
                       max={duration || 0}
                       value={currentTime}
                       onChange={handleTimeChange}
-                      className="w-full custom-slider h-4 bg-transparent appearance-none cursor-pointer"
+                      className="w-full custom-slider h-4 bg-transparent appearance-none cursor-pointer m-0 p-0"
+                      style={{
+                        background: `linear-gradient(to right, #db2777 ${progress}%, #3f3f46 ${progress}%)`
+            }}
                   />
-                <span className="shrink-0">{formatTime(duration)}</span>
               </div>
+
+
+          {/* Left Side */}
+            <div className="w-[120px]  flex justify-start items-center shrink-0">
+              <button onClick={togglePlay}
+              className="w-12 h-12 flex items-center justify-center rounded-full hover:scale-105 active:scale-95 transition-transform font-bold text-lg">
+                {isPlaying ? '||': '▶'}
+              </button>
+                <div className="flex items-center gap-1 select-none">
+                    <span>{formatTime(currentTime)}</span>
+                    <span className="text-zinc-600">/</span>
+                    <span>{formatTime(duration)}</span>
+                </div>
             </div>
 
+          {/* Central part */}
+            <div className="flex-1 flex justify-center items-center px-4 min-w-0">
+
+                <div className="flex items-center gap-3 max-w-full min-w-0">
+                    <img 
+                    src={currentSong.cover_url || "https://placehold.co/150x150?text=No+Cover"} 
+                    alt={currentSong.title}
+                    className="w-12 h-12 rounded object-cover flex-shrink-0 bg-zinc-800 border border-zinc-800"
+                    />
+
+                <div className="min-w-0 text-left">
+                    <p className="font-semibold text-sm text-zinc-100 truncate">{currentSong.title}</p>
+                    <p className="text-xs text-zinc-400 truncate">{currentSong.author}</p>
+                </div>
+
+
+              </div>
+
+
             {/* Right Side with adjust volume */}
-            <div className="w-[120px] flex justify-end items-center gap-2 shrink-0 text-zinc-400">
+            <div className="w-[180px] flex justify-end items-center gap-2 shrink-0 text-zinc-400">
                 <input 
                     type='range'
                     min={0}
@@ -125,6 +138,8 @@ function Player({currentSong, togglePlay, isPlaying, audioRef}: PlayerProps){
                     className='w-20 custom-slider h-4 bg-transparent appearance-none cursor-pointer'
                 />
             </div>
+            </div>
+        
           </>
 
 
