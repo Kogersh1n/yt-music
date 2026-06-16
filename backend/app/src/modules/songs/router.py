@@ -75,6 +75,19 @@ async def import_from_youtube(session: SessionDep, import_data: SongYoutubeImpor
 
 
 @songs_router.get(
+    '/youtube/search',
+    response_model=YouTubeSearchResponse,
+)
+async def youtube_search(q: str = Query(min_length=1, max_length=200)):
+    return await song_service.search_songs(query=q)
+
+
+@songs_router.get('/youtube/stream/{video_id}')
+async def stream_without_saving(video_id: int):
+    return await song_service.stream_without_download(video_id=video_id)
+
+
+@songs_router.get(
         '/{song_id}',
         response_model=SongResponse
         )
