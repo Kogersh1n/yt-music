@@ -51,7 +51,7 @@ export function getYouTubeStream(videoId: string): Promise<{ stream_url: string 
 }
 
 export function loadSongs(cursor?: string | null): Promise<SongPaginationResponse> {
-    const url = cursor ? `/songs?cursor=${encodeURIComponent(cursor)}` : '/songs';
+    const url = cursor ? `/songs/?cursor=${encodeURIComponent(cursor)}` : '/songs/';
     return apiClient<SongPaginationResponse>(url)
 }
 
