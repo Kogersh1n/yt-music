@@ -1,5 +1,4 @@
-const rawBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const BASE_URL = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
+const BASE_URL = 'https://gentle-elegance-production-96d1.up.railway.app';
 
 /**
 * @param endpoint какая то специальная функция для апи 
