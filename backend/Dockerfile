@@ -3,7 +3,7 @@ FROM python:3.12-slim
 # Настройки для оптимизации работы Python в контейнере
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app/app
 
 # Устанавливаем рабочую директорию внутри контейнера
 WORKDIR /app
@@ -23,8 +23,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Это решает проблему ошибки "failed to calculate checksum ... /app: not found"
 COPY . .
 
+WORKDIR /app/app
+
 # Открываем порт для FastAPI
 EXPOSE 8000
 
 # Рекомендуемый безопасный формат для запуска миграций и сервера через shell-вызов внутри JSON
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn src.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
