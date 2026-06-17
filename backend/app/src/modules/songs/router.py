@@ -37,8 +37,8 @@ async def upload_cover(*, filename: str, file_type: str):
     '/search',
     response_model=list[SongResponse],
 )
-async def search(session: SessionDep, q: str = Query(min_length=1)):
-    return await song_service.search_songs(session=session, query=q)
+async def search(q: str = Query(min_length=1)):
+    return await song_service.search_songs( query=q)
     
 
 @songs_router.post(
@@ -83,7 +83,7 @@ async def youtube_search(q: str = Query(min_length=1, max_length=200)):
 
 
 @songs_router.get('/youtube/stream/{video_id}')
-async def stream_without_saving(video_id: int):
+async def stream_without_saving(video_id: str):
     return await song_service.stream_without_download(video_id=video_id)
 
 

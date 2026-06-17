@@ -5,6 +5,7 @@ export interface ApiSong {
     title: string;
     author: string;
     duration: number;
+    cover_url: string | null;
 }
 
 export interface SongPaginationResponse {

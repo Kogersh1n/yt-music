@@ -3,7 +3,7 @@ import {useState, useEffect, useRef} from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 import {useSongs} from './features/songs/useSong.ts'
-import {getSongStream, getSongCover, type ApiSong}  from './api/songs.ts';
+import {getSongStream, type ApiSong}  from './api/songs.ts';
 import type { PlayingSong } from './types/song.ts';
 
 
@@ -36,15 +36,11 @@ function App() {
 
   const handleSongSelect = async (song: ApiSong ) => {
     try {
-        const [streamData, coverData] = await Promise.all([
-        getSongStream(song.id),
-        getSongCover(song.id),
-      ]);
+        const streamData = await getSongStream(song.id);
 
       const songToPlay: PlayingSong = {
         ...song,
         url: streamData.stream_url,
-        cover_url: coverData.cover_url,
       };
 
       setCurrentSong(songToPlay);

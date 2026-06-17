@@ -10,7 +10,7 @@ WORKDIR /app
 
 # Install basic system tools (curl can be used for container healthchecks)
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
-    nodejs \
+    quickjs \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
