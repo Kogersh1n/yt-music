@@ -1,31 +1,30 @@
 FROM python:3.12-slim
 
-# Set environment variables to optimize Python execution and set the PYTHONPATH
+# Настройки для оптимизации работы Python в контейнере
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH=/app/app
+    PYTHONPATH=/app
 
-# Set the working directory
+# Устанавливаем рабочую директорию внутри контейнера
 WORKDIR /app
 
-# Install basic system tools (curl can be used for container healthchecks)
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+# Устанавливаем системные утилиты (ffmpeg, quickjs для yt-dlp и curl для хелсчеков)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
     quickjs \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install dependencies first to leverage Docker cache layers
+# Копируем и устанавливаем зависимости (используем кэш докера, если реквайрментс не менялся)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the app directory (containing the src/ package) into /app/app
-COPY app/ /app/app/
+# Копируем ВСЕ файлы из корня репозитория (включая папку src/) прямо в /app
+# Это решает проблему ошибки "failed to calculate checksum ... /app: not found"
+COPY . .
 
-# Expose the API port
+# Открываем порт для FastAPI
 EXPOSE 8000
 
-# Set the final working directory to /app/app so uvicorn runs in the correct context
-WORKDIR /app/app
-
-# Run migrations, then start the application
-CMD alembic upgrade head && exec uvicorn src.main:app --host 0.0.0.0 --port 8000
+# Рекомендуемый безопасный формат для запуска миграций и сервера через shell-вызов внутри JSON
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn src.main:app --host 0.0.0.0 --port 8000"]
