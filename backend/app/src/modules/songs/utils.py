@@ -1,3 +1,4 @@
+from uuid import UUID
 import asyncio
 import os
 import yt_dlp
@@ -62,16 +63,16 @@ async def download_youtube_audio(url: str) -> dict:
         "title": download_info.get("title"),
         "author": download_info.get("uploader"),  
         "duration": duration,
-        "thumbnail_url": download_info.get("thumbnail"), 
+        "cover_url": download_info.get("thumbnail"), 
         "file_path": expected_mp3_path  
     }
 
-async def download_thumbnail(url: str, video_id: int) -> str:
+async def download_thumbnail(url: str, song_id: str) -> str:
 
     async with httpx.AsyncClient() as client:
         response = await client.get(url)
         content = response.content
-        file_path = f'/tmp/{video_id}.jpg'
+        file_path = f'/tmp/{song_id}.jpg'
         
     with open(file_path, 'wb') as file:
         file.write(content)
@@ -104,7 +105,7 @@ async def search_youtube(query: str, max_results=10) -> list[dict]:
             "title": entry.get('title'),
             "author": entry.get('uploader') or entry.get('channel'),
             "duration": entry.get('duration', 0),
-            "thumbnail": f"https://i.ytimg.com/vi/{entry.get('id')}/hqdefault.jpg",
+            "cover": f"https://i.ytimg.com/vi/{entry.get('id')}/hqdefault.jpg",
             "url": f"https://www.youtube.com/watch?v={entry.get('id')}",
         }
         for entry in entries

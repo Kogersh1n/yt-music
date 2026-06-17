@@ -15,7 +15,7 @@ from src.integrations.s3 import (
 
 from src.modules.songs.models import Song
 from src.modules.songs.repository import SongRepository,song_repository 
-from src.modules.songs.schemas import SongCreate, YouTubeSearchResponse
+from src.modules.songs.schemas import SongCreate, SongResponse, YouTubeSearchResponse
 from src.modules.songs.utils import download_youtube_audio, download_thumbnail, get_youtube_stream_url, search_youtube
 
 
@@ -27,6 +27,23 @@ ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 class SongService:
     def __init__(self, repo: SongRepository):
         self.repo = repo
+    
+    async def _enrich_with_cover_url(self, song: Song) -> SongResponse:
+        """Convert a Song ORM object to SongResponse with a presigned cover URL."""
+        cover_url = None
+        if song.cover_file_key:
+            cover_url = await generate_presigned_get(
+                bucket=settings.R2_BUCKET,
+                key=song.cover_file_key,
+                expires=settings.R2_PRESIGNED_URL_EXPIRE_SECONDS
+            )
+        resp = SongResponse.model_validate(song)
+        resp.cover_url = cover_url
+        return resp
+
+    async def _enrich_many(self, songs: list[Song]) -> list[SongResponse]:
+        """Enrich a list of Song ORM objects with presigned cover URLs."""
+        return [await self._enrich_with_cover_url(s) for s in songs]
     
     async def get_upload_credentials(self, filename: str, file_type: str) -> dict:
 
@@ -100,7 +117,6 @@ class SongService:
 
 
     async def get_all_songs(self, session: AsyncSession, cursor: None | str, limit: int):
-        # return await self.repo.get_all(session=session, limit=limit)
         cursor_created_at = None
         cursor_id = None
 
@@ -127,8 +143,10 @@ class SongService:
             songs_to_return = songs
             next_cursor = None
         
+        enriched = await self._enrich_many(list(songs_to_return))
+
         return {
-            "items": songs_to_return,
+            "items": enriched,
             "next_cursor": next_cursor,
             "has_more": has_more
         }
@@ -141,12 +159,12 @@ class SongService:
         try:
             meta = await download_youtube_audio(url=url)
             audio_path = meta['file_path']
-            video_id = audio_path.split("/")[-1].replace(".mp3", "")
+            song_id = audio_path.split("/")[-1].replace(".mp3", "")
 
-            cover_path = await download_thumbnail(url=meta['thumbnail_url'], video_id=video_id)
+            cover_path = await download_thumbnail(url=meta['cover_url'], song_id=song_id)
 
-            r2_audio_key = f'{settings.R2_TRACKS_PREFIX}/{video_id}.mp3'
-            r2_cover_key = f'{settings.R2_COVERS_PREFIX}/{video_id}.jpg'
+            r2_audio_key = f'{settings.R2_TRACKS_PREFIX}/{song_id}.mp3'
+            r2_cover_key = f'{settings.R2_COVERS_PREFIX}/{song_id}.jpg'
 
             await upload_file_object(
                 bucket=settings.R2_BUCKET,
@@ -187,7 +205,7 @@ class SongService:
         if song is None:
             raise NotFoundError("Song", str(song_id))
         
-        return song
+        return await self._enrich_with_cover_url(song)
     
     async def delete_song(self, session: AsyncSession, song_id: UUID):
         song = await self.repo.get(session=session, id=song_id)

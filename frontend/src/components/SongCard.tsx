@@ -1,6 +1,4 @@
-import { useState, useEffect } from 'react';
 import type { ApiSong} from "../api/songs";
-import { getSongCover } from "../api/songs";
 
 // src/components/SongCard.tsx
 
@@ -13,19 +11,6 @@ interface SongCardProps {
 
 
 function SongCard ({song, isActive, onClick}: SongCardProps){
-    const [coverUrl, setCoverUrl] = useState<string | null>(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        getSongCover(song.id)
-            .then((data) => {
-                if (!cancelled) setCoverUrl(data.cover_url);
-            })
-            .catch(() => { /* cover не критичен */ });
-        return () => { cancelled = true; };
-    }, [song.id]);
-
-
     return (
           <button
         type="button"
@@ -34,9 +19,9 @@ function SongCard ({song, isActive, onClick}: SongCardProps){
          `}
          onClick={() => onClick()}
          >
-          {coverUrl ? (
+          {song.cover_url ? (
             <img 
-              src={coverUrl} 
+              src={song.cover_url} 
               alt={song.title}
               className="w-15 h-15 rounded flex-shrink-0 object-cover bg-zinc-700"
             />

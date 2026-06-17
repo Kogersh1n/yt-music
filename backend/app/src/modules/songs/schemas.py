@@ -30,6 +30,7 @@ class SongResponse(SongBase):
 
     audio_file_key: str 
     cover_file_key: str | None
+    cover_url: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
