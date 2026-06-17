@@ -11,7 +11,6 @@ from src.core.exceptions import AppError
 app = FastAPI(
     title="YouTube Music Clone API",
     debug=settings.DEBUG,
-    redirect_slashes=False
 )
 
 @app.exception_handler(AppError)
