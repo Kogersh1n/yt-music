@@ -1,5 +1,5 @@
 from datetime import datetime
-# from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     DateTime,
@@ -9,9 +9,13 @@ from sqlalchemy import (
     Index
 )
 
-from sqlalchemy.orm import mapped_column,Mapped
+from sqlalchemy.orm import mapped_column,Mapped, relationship
 
 from src.db.base import Base
+
+from src.modules.playlists.models import playlist_song
+if TYPE_CHECKING:
+    from src.modules.playlists.models import Playlist
 
 
 class Song(Base):
@@ -27,7 +31,6 @@ class Song(Base):
     liked: Mapped[int] = mapped_column(server_default=text("0"))
 
     author: Mapped[str] = mapped_column(String(100), index=True)
-    # album: Mapped[str] = mapped_column(String()) 
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -38,6 +41,12 @@ class Song(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         onupdate=func.now()
+    )
+
+    playlists: Mapped[list['Playlist']] = relationship(
+        'Playlist',
+        secondary=playlist_song,
+        back_populates='songs'
     )
 
     __table_args__ = (
