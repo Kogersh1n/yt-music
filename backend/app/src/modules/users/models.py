@@ -16,6 +16,7 @@ from src.modules.playlists.models import liked_songs
 if TYPE_CHECKING:
     from src.modules.playlists.models import Playlist
     from src.modules.songs.models import Song
+    from src.modules.auth.models import RefreshToken
 
 
 
@@ -42,20 +43,18 @@ class User(Base):
     )
 
     # Relationships 
-    playlists: Mapped[list['Playlist']] = relationship(
+    playlists: Mapped[list[Playlist]] = relationship(
         'Playlist',
         back_populates='user'
     )
-    liked_songs: Mapped[list['Song']] = relationship(
+    liked_songs: Mapped[list[Song]] = relationship(
         'Song',
         secondary=liked_songs
     )
 
-
-    # refresh_token: Mapped[list['RefreshToken']] = relationship (
-    #     back_populates='user',
-    #     passive_deletes=True
-    # )
-
+    refresh_token: Mapped[list[RefreshToken]] = relationship (
+        back_populates='user',
+        passive_deletes=True
+    )
 
 

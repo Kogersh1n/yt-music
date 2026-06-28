@@ -224,13 +224,20 @@ class SongService:
     async def create_song(self, session: AsyncSession, song_in: SongCreate):
         return await self.repo.create(session=session, obj_in=song_in)
 
-
     async def search_songs(self, query: str) -> YouTubeSearchResponse:
         results = await search_youtube(query=query)
         return {"results": results, "query": query}
 
     async def stream_without_download(self, video_id: str) -> dict:
         return await get_youtube_stream_url(video_id=video_id)
+
+    async def add_like(self, session: AsyncSession, song_id: UUID):
+        song = await self.repo.get(session=session, id=song_id)
+        if song is None:
+            raise NotFoundError("Song", str(song_id))
         
+        
+
+
 
 song_service = SongService(repo=song_repository)

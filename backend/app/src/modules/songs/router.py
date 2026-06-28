@@ -110,4 +110,9 @@ async def get_stream(session: SessionDep, song_id: UUID):
 async def get_cover(session: SessionDep, song_id: UUID):
     return await song_service.get_cover_url(session=session, song_id=song_id)
 
+# Routers for likes 
+
+@songs_router.post('/{song_id}/like')
+async def add_like(session: SessionDep, song_id: UUID):
+    return await song_service.add_like(session=session, song_id=song_id)
 
