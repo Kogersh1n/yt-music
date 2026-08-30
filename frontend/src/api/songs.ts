@@ -1,76 +1,55 @@
 import { apiClient } from './client';
+import type { ApiSong } from '../types/song';
+import type {
+  SongPaginationResponse,
+  StreamResponse,
+  CoverResponse,
+  UploadCredentialsResponse,
+  SongCoverResponse,
+} from '../types/api';
 
-export interface ApiSong {
-    id: string; // UUID на фронте прилетает как string
-    title: string;
-    author: string;
-    duration: number;
-    cover_url: string | null;
+export function loadSongs(limit = 50, cursor?: string | null): Promise<SongPaginationResponse> {
+  const params = new URLSearchParams();
+  params.append('limit', limit.toString());
+  if (cursor) params.append('cursor', cursor);
+
+  return apiClient<SongPaginationResponse>(`/songs/?${params.toString()}`);
 }
 
-export interface SongPaginationResponse {
-    items: ApiSong[];
-    next_cursor: string | null
-    has_more: boolean;
-    
+export function searchSongs(query: string): Promise<ApiSong[]> {
+  return apiClient<ApiSong[]>(`/songs/search?q=${encodeURIComponent(query)}`);
 }
 
-export interface StreamResponse {
-    stream_url: string;
-    duration: number
-}
-
-export interface CoverResponse {
-    cover_url: string;
-}
-
-export interface YouTubeResult {
-    video_id: string;
-    title: string;
-    author: string | null;
-    duration: number;
-    cover: string;
-    url: string;
-}
-
-export interface YouTubeSearchResponse {
-    results: YouTubeResult[];
-    query: string;
-}
-
-export function searchYouTube(query: string): Promise<YouTubeSearchResponse> {
-    return apiClient<YouTubeSearchResponse>(
-        `/songs/youtube/search?q=${encodeURIComponent(query)}`
-    );
-}
-
-export function getYouTubeStream(videoId: string): Promise<{ stream_url: string }> {
-    return apiClient<{ stream_url: string }>(
-        `/songs/youtube/stream/${videoId}`
-    );
-}
-
-export function loadSongs(cursor?: string | null): Promise<SongPaginationResponse> {
-    const url = cursor ? `/songs/?cursor=${encodeURIComponent(cursor)}` : '/songs/';
-    return apiClient<SongPaginationResponse>(url)
+export function getSongById(songId: string): Promise<ApiSong> {
+  return apiClient<ApiSong>(`/songs/${songId}`);
 }
 
 export function getSongStream(songId: string): Promise<StreamResponse> {
-    return apiClient<StreamResponse>(`/songs/${songId}/stream`);
+  return apiClient<StreamResponse>(`/songs/${songId}/stream`);
 }
 
 export function getSongCover(songId: string): Promise<CoverResponse> {
-    return apiClient<CoverResponse>(`/songs/${songId}/cover`);
+  return apiClient<CoverResponse>(`/songs/${songId}/cover`);
 }
 
-export function importSongFromYoutube(query: string): Promise<{ message: string; song_id? : string }> {
-    return apiClient<{ message: string; song_id?: string }>('/songs/import/youtube', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query }),
-    });
+export function toggleSongLike(songId: string): Promise<{ status: string; liked?: boolean }> {
+  return apiClient<{ status: string; liked?: boolean }>(`/songs/${songId}/like`, {
+    method: 'POST',
+  });
 }
 
+export function deleteSong(songId: string): Promise<void> {
+  return apiClient<void>(`/songs/${songId}`, {
+    method: 'DELETE',
+  });
+}
 
+export function getUploadUrl(filename: string, fileType: string): Promise<UploadCredentialsResponse> {
+  const params = new URLSearchParams({ filename, file_type: fileType });
+  return apiClient<UploadCredentialsResponse>(`/songs/upload-url?${params.toString()}`);
+}
+
+export function getCoverUploadUrl(filename: string, fileType: string): Promise<SongCoverResponse> {
+  const params = new URLSearchParams({ filename, file_type: fileType });
+  return apiClient<SongCoverResponse>(`/songs/upload-cover-url?${params.toString()}`);
+}

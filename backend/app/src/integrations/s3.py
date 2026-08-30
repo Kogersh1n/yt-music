@@ -1,35 +1,70 @@
+import asyncio
+
 import aioboto3
 import aiofiles
 from src.core.exceptions import ExternalServiceError
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from src.core.config import settings
 
 
 _s3_session = aioboto3.Session()
 
+# Клиенты живут всё время работы процесса и переиспользуются.
+#
+# Раньше каждый вызов открывал свой клиент через `async with`. Создание
+# клиента aiobotocore — это разбор модели сервиса S3 и подъём HTTP-сессии,
+# то есть десятки миллисекунд. А подписание ссылки после этого — чистая
+# арифметика без сети, микросекунды.
+#
+# Список треков подписывает обложку каждому по очереди, так что на выдаче
+# из 30 песен накапливались секунды ожидания на ровном месте.
+_clients: dict[str, object] = {}
+_clients_lock = asyncio.Lock()
+_exit_stack = AsyncExitStack()
+
+
+async def _cached_client(endpoint_url: str):
+    client = _clients.get(endpoint_url)
+    if client is not None:
+        return client
+
+    async with _clients_lock:
+        # Повторная проверка под замком: параллельные запросы на холодном
+        # старте иначе создали бы по клиенту каждый.
+        client = _clients.get(endpoint_url)
+        if client is not None:
+            return client
+
+        client = await _exit_stack.enter_async_context(
+            _s3_session.client(
+                's3',
+                endpoint_url=endpoint_url,
+                aws_access_key_id=settings.R2_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
+                region_name='auto',
+            )
+        )
+        _clients[endpoint_url] = client
+        return client
+
+
+async def close_s3_clients() -> None:
+    """Закрывает клиентов при остановке приложения (см. lifespan в main.py)."""
+    await _exit_stack.aclose()
+    _clients.clear()
+
+
 @asynccontextmanager
 async def get_s3_client():
-    async with _s3_session.client(
-        's3',
-        endpoint_url=settings.r2_endpoint_url,
-        aws_access_key_id=settings.R2_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
-        region_name='auto'
-    ) as client:
-        yield client
+    # Контекстный менеджер сохранён, чтобы не трогать вызывающий код,
+    # но клиента больше не закрывает — он общий.
+    yield await _cached_client(settings.r2_endpoint_url)
 
 
 @asynccontextmanager
 async def get_s3_public_client():
     """Клиент с публичным endpoint — для presigned GET URL, которые пойдут в браузер."""
-    async with _s3_session.client(
-        's3',
-        endpoint_url=settings.r2_public_endpoint_url,
-        aws_access_key_id=settings.R2_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
-        region_name='auto'
-    ) as client:
-        yield client
+    yield await _cached_client(settings.r2_public_endpoint_url)
 
 
 async def generate_presigned_put(bucket: str, key: str, content_type: str, expires: int) -> str:

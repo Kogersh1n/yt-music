@@ -20,7 +20,7 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
         result = await session.execute(query)
         return result.scalars().first()
     
-    async def exists_by_username_or_email(
+    async def exists_by_email_or_username(
             self,
             session: AsyncSession,
             *,

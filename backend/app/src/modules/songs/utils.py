@@ -5,7 +5,57 @@ import yt_dlp
 import httpx
 from fastapi import HTTPException
 
-from src.core.exceptions import BadRequestError
+from src.core.config import settings
+from src.core.exceptions import BadRequestError, ExternalServiceError
+
+
+
+def _access_opts() -> dict:
+    """Параметры доступа к YouTube: cookies и прокси, если заданы.
+
+    Оба необязательны и подмешиваются в любой вызов yt-dlp. Cookies снимают
+    проверку «подтвердите, что вы не робот», прокси меняет адрес, с которого
+    уходит запрос. Файл cookies проверяется на существование: подсунуть
+    yt-dlp несуществующий путь — значит получить падение вместо работы
+    без cookies.
+    """
+    opts: dict = {}
+
+    cookies = settings.YTDLP_COOKIES_FILE
+    if cookies and os.path.isfile(cookies):
+        opts["cookiefile"] = cookies
+
+    if settings.YTDLP_PROXY:
+        opts["proxy"] = settings.YTDLP_PROXY
+
+    return opts
+
+
+def _translate_yt_error(exc: Exception) -> Exception:
+    """Превращает ошибку yt-dlp в доменную.
+
+    Без этого любой отказ ютуба всплывает как 500, и клиент не может
+    отличить «видео недоступно» от «сервер сломался». Отдельно выделен
+    бот-фильтр: YouTube блокирует IP дата-центров, и это не наша поломка,
+    а внешний отказ — 502, а не 500.
+    """
+    text = str(exc)
+
+    if "Sign in to confirm" in text or "not a bot" in text:
+        return ExternalServiceError(
+            "YouTube",
+            "запросы с этого сервера помечены как автоматические. "
+            "Нужны cookies или PO-токен — см. docs/youtube-block.md",
+        )
+
+    if "Video unavailable" in text or "Private video" in text:
+        return BadRequestError("Видео недоступно")
+
+    if "age" in text.lower() and "restrict" in text.lower():
+        return BadRequestError("Видео с возрастным ограничением")
+
+    return ExternalServiceError("YouTube", "не удалось получить данные о видео")
+
 
 async def download_youtube_audio(url: str) -> dict:    
     if not (url.startswith('https://') or url.startswith('http://')):
@@ -14,7 +64,8 @@ async def download_youtube_audio(url: str) -> dict:
     meta_opts = {
         'skip_download': True,
         'extract_flat': False,
-        'noplaylist': True
+        'noplaylist': True,
+        **_access_opts(),
     }
 
     
@@ -22,7 +73,10 @@ async def download_youtube_audio(url: str) -> dict:
         with yt_dlp.YoutubeDL(meta_opts) as ydl:
             return ydl.extract_info(url, download=False)
             
-    info = await asyncio.to_thread(extract_meta)
+    try:
+        info = await asyncio.to_thread(extract_meta)
+    except yt_dlp.utils.DownloadError as exc:
+        raise _translate_yt_error(exc) from None
 
     if info.get('_type') == 'playlist' or 'entries' in info:
         if info['entries']:
@@ -40,31 +94,54 @@ async def download_youtube_audio(url: str) -> dict:
     video_id = info.get('id')
     out_template = f'/tmp/{video_id}.%(ext)s'
     
+    # Без перекодирования. YouTube отдаёт готовый m4a (AAC), и прогон его
+    # через ffmpeg в mp3 192k был самой долгой частью импорта — при том, что
+    # качество от второго сжатия только падает. m4a играет нативно и на
+    # Android, и на iOS, и react-native-track-player его понимает.
     download_opts = {
-        'format': 'bestaudio/best',
+        'format': 'bestaudio[ext=m4a]/bestaudio',
         'outtmpl': out_template,
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
-        'quiet': True, 
+        'quiet': True,
+        **_access_opts(),
     }
     
     def download_media():
         with yt_dlp.YoutubeDL(download_opts) as ydl:
             return ydl.extract_info(url, download=True)
             
-    download_info = await asyncio.to_thread(download_media)
+    try:
+        download_info = await asyncio.to_thread(download_media)
+    except yt_dlp.utils.DownloadError as exc:
+        raise _translate_yt_error(exc) from None
     
-    expected_mp3_path = f'/tmp/{video_id}.mp3'
-    
+    # Расширение теперь не фиксировано (m4a, webm — что отдал ютуб),
+    # поэтому путь берём у самого yt-dlp, а не собираем строкой.
+    with yt_dlp.YoutubeDL(download_opts) as ydl:
+        file_path = ydl.prepare_filename(download_info)
+
+    if not os.path.exists(file_path):
+        matches = [
+            os.path.join('/tmp', name)
+            for name in os.listdir('/tmp')
+            if name.startswith(f'{video_id}.')
+        ]
+        if not matches:
+            raise BadRequestError("Файл не найден после скачивания")
+        file_path = matches[0]
+
     return {
+        "video_id": video_id,
         "title": download_info.get("title"),
-        "author": download_info.get("uploader"),  
+        # У треков из YouTube Music исполнитель лежит в artist, а uploader
+        # может быть пустым или названием канала-выгрузчика.
+        "author": (
+            download_info.get("artist")
+            or download_info.get("uploader")
+            or "Неизвестный исполнитель"
+        ),
         "duration": duration,
-        "cover_url": download_info.get("thumbnail"), 
-        "file_path": expected_mp3_path  
+        "cover_url": download_info.get("thumbnail"),
+        "file_path": file_path,
     }
 
 async def download_thumbnail(url: str, song_id: str) -> str:
@@ -87,9 +164,10 @@ async def search_youtube(query: str, max_results=10) -> list[dict]:
 
     opts = {
         'skip_download': True,
-        'extract_flat': True,  
+        'extract_flat': True,
         'noplaylist': True,
         'quiet': True,
+        **_access_opts(),
     }
 
     def _search():
@@ -120,14 +198,19 @@ async def get_youtube_stream_url(video_id: str) -> str:
         'skip_download': True,
         'noplaylist': True,
         'quiet': True,
+        **_access_opts(),
     }
 
     def _extract():
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
             return info.get('url')
-        
-    stream_url = await asyncio.to_thread(_extract)
+
+    try:
+        stream_url = await asyncio.to_thread(_extract)
+    except yt_dlp.utils.DownloadError as exc:
+        raise _translate_yt_error(exc) from None
+
     if not stream_url:
         raise BadRequestError("Не удалось получить аудиопоток")
     return stream_url

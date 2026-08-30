@@ -20,3 +20,9 @@ docker-compose.override.yml
 .vscode/
 *.swp
 *.swo
+
+# Заголовки авторизации YouTube Music (ytmusicapi browser).
+# Внутри Cookie и Authorization живой сессии — в репозиторий нельзя.
+browser.json
+**/browser.json
+secrets/

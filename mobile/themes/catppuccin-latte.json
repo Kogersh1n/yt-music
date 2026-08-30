@@ -1,0 +1,46 @@
+{
+  "schema": "ytmusic-theme/1",
+  "id": "catppuccin-latte",
+  "name": "Catppuccin Latte",
+  "author": "Catppuccin",
+  "extends": "base-light",
+  "mode": "light",
+  "palette": {
+    "base": "#eff1f5",
+    "mantle": "#e6e9ef",
+    "crust": "#dce0e8",
+    "surface0": "#ccd0da",
+    "surface1": "#bcc0cc",
+    "text": "#4c4f69",
+    "subtext0": "#5c5f77",
+    "overlay0": "#7c7f93",
+    "mauve": "#8839ef",
+    "red": "#d20f39"
+  },
+  "colors": {
+    "bg": "$base",
+    "surface": "$mantle",
+    "surfaceHigh": "$surface0",
+    "player": "$crust",
+    "border": "$surface1",
+    "text": "$text",
+    "textDim": "$subtext0",
+    "textFaint": "$overlay0",
+    "brand": "$red",
+    "accent": "$mauve",
+    "onAccent": "$base",
+    "danger": "$red",
+    "scrim": "$base@70",
+    "skeleton": "$mantle",
+    "skeletonHighlight": "$surface0"
+  },
+  "radius": {
+    "thumb": 8,
+    "card": 12,
+    "sheet": 20,
+    "chip": 999
+  },
+  "typography": {
+    "family": "IBM Plex Sans"
+  }
+}

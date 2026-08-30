@@ -14,6 +14,7 @@ class SongBase(BaseModel):
 class SongCreate(SongBase):
     audio_file_key: str
     cover_file_key: str | None = None
+    youtube_id: str | None = None
 
 
 class SongUpdate(BaseModel):
@@ -23,6 +24,7 @@ class SongUpdate(BaseModel):
 
 class SongResponse(SongBase):
     id: UUID
+    youtube_id: str | None = None
 
     listened: int
     liked: int

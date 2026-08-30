@@ -1,0 +1,59 @@
+{
+  "schema": "ytmusic-theme/1",
+  "id": "pixel-crt",
+  "name": "Pixel CRT",
+  "extends": "base-dark",
+  "mode": "dark",
+  "palette": {
+    "void": "#0b1207",
+    "panel": "#101a0b",
+    "raised": "#16240f",
+    "grid": "#2b4a1c",
+    "phosphor": "#b6f36a",
+    "dim": "#8ab84f",
+    "faint": "#5d8232",
+    "alert": "#ffd166"
+  },
+  "colors": {
+    "bg": "$void",
+    "surface": "$panel",
+    "surfaceHigh": "$raised",
+    "player": "$panel",
+    "border": "$grid",
+    "text": "$phosphor",
+    "textDim": "$dim",
+    "textFaint": "$faint",
+    "brand": "$alert",
+    "accent": "$phosphor",
+    "onAccent": "$void",
+    "danger": "$alert",
+    "scrim": "$void@75",
+    "skeleton": "$panel",
+    "skeletonHighlight": "$raised"
+  },
+  "radius": {
+    "thumb": 0,
+    "card": 0,
+    "sheet": 0,
+    "chip": 0
+  },
+  "typography": {
+    "family": "Handjet",
+    "scale": 1.05,
+    "letterSpacing": 0.03
+  },
+  "layout": {
+    "density": "compact"
+  },
+  "motion": {
+    "scale": 0
+  },
+  "components": {
+    "playButton": "square",
+    "progress": "stepped",
+    "thumb": "square"
+  },
+  "decor": {
+    "overlay": "scanlines"
+  }
+}

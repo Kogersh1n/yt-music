@@ -1,0 +1,47 @@
+{
+  "schema": "ytmusic-theme/1",
+  "id": "paper",
+  "name": "Paper",
+  "extends": "base-light",
+  "mode": "light",
+  "palette": {
+    "sheet": "#fbfaf7",
+    "card": "#f2f0ea",
+    "edge": "#ddd8cc",
+    "ink": "#26241f",
+    "inkSoft": "#57534a",
+    "inkFaint": "#8a8479",
+    "stamp": "#a33b26"
+  },
+  "colors": {
+    "bg": "$sheet",
+    "surface": "$card",
+    "surfaceHigh": "$edge",
+    "player": "$card",
+    "border": "$edge",
+    "text": "$ink",
+    "textDim": "$inkSoft",
+    "textFaint": "$inkFaint",
+    "brand": "$stamp",
+    "accent": "$ink",
+    "onAccent": "$sheet",
+    "danger": "$stamp",
+    "scrim": "$sheet@75",
+    "skeleton": "$card",
+    "skeletonHighlight": "$edge"
+  },
+  "radius": {
+    "thumb": 2,
+    "card": 3,
+    "sheet": 6,
+    "chip": 4
+  },
+  "typography": {
+    "family": "IBM Plex Sans",
+    "letterSpacing": 0.01
+  },
+  "components": {
+    "playButton": "pill",
+    "progress": "line"
+  }
+}

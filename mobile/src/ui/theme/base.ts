@@ -1,0 +1,111 @@
+import type { ThemeSource } from './types';
+
+/**
+ * Встроенные базовые темы.
+ *
+ * От них наследуются все остальные через `extends`, и на них же приложение
+ * откатывается, если пользовательская тема не разобралась. Здесь заданы
+ * ВСЕ поля — это последняя ступень, ниже подставлять уже неоткуда.
+ */
+
+export const BASE_DARK: Required<Pick<ThemeSource, 'id'>> & ThemeSource = {
+  schema: 'ytmusic-theme/1',
+  id: 'base-dark',
+  name: 'YT по умолчанию',
+  mode: 'dark',
+
+  colors: {
+    // Почти чёрный, а не #000: на OLED так меньше «провала» между экраном и рамкой.
+    bg: '#030303',
+    surface: '#1f1f1f',
+    surfaceHigh: '#282828',
+    player: '#212121',
+    border: '#303030',
+
+    text: '#ffffff',
+    textDim: '#aaaaaa',
+    textFaint: '#717171',
+
+    brand: '#ff0033',
+    // Белый акцент — ключевая черта палитры YouTube Music.
+    accent: '#ffffff',
+    onAccent: '#030303',
+
+    danger: '#ff4e45',
+    scrim: 'rgba(0,0,0,0.6)',
+    skeleton: '#1a1a1a',
+    skeletonHighlight: '#2a2a2a',
+  },
+
+  radius: { thumb: 4, card: 8, sheet: 16, chip: 999 },
+  spacing: { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 },
+
+  typography: {
+    family: 'system',
+    scale: 1,
+    letterSpacing: 0,
+    roles: {
+      title: { fontSize: 22, fontWeight: '700', letterSpacing: 0 },
+      section: { fontSize: 20, fontWeight: '700', letterSpacing: 0 },
+      trackTitle: { fontSize: 14, fontWeight: '500', letterSpacing: 0 },
+      meta: { fontSize: 12, fontWeight: '400', letterSpacing: 0 },
+      body: { fontSize: 14, fontWeight: '400', letterSpacing: 0 },
+      label: { fontSize: 13, fontWeight: '500', letterSpacing: 0 },
+    },
+  },
+
+  layout: {
+    miniPlayerHeight: 64,
+    tabBarHeight: 56,
+    rowThumb: 48,
+    cardWidth: 150,
+    screenPadding: 16,
+    density: 'comfortable',
+  },
+
+  components: {
+    playButton: 'circle',
+    progress: 'line',
+    thumb: 'rounded',
+    tabBarLabels: true,
+  },
+
+  motion: { scale: 1 },
+  decor: { overlay: 'none' },
+};
+
+export const BASE_LIGHT: ThemeSource = {
+  schema: 'ytmusic-theme/1',
+  id: 'base-light',
+  name: 'Светлая',
+  extends: 'base-dark',
+  mode: 'light',
+
+  colors: {
+    bg: '#ffffff',
+    surface: '#f2f2f2',
+    surfaceHigh: '#e5e5e5',
+    player: '#f8f8f8',
+    border: '#dedede',
+
+    text: '#0f0f0f',
+    textDim: '#606060',
+    textFaint: '#909090',
+
+    brand: '#cc0022',
+    // На светлом фоне белый акцент невидим — меняем полярность на обратную.
+    accent: '#0f0f0f',
+    onAccent: '#ffffff',
+
+    danger: '#c5221f',
+    scrim: 'rgba(255,255,255,0.7)',
+    skeleton: '#ededed',
+    skeletonHighlight: '#f7f7f7',
+  },
+};
+
+/** Темы, от которых разрешено наследоваться через `extends`. */
+export const BASES: Record<string, ThemeSource> = {
+  'base-dark': BASE_DARK,
+  'base-light': BASE_LIGHT,
+};

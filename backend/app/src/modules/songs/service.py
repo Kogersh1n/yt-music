@@ -1,9 +1,13 @@
+import asyncio
 import os
+import re
+import time
 from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
+from src.integrations.redis.client import get_redis_client
 from src.core.exceptions import NotFoundError,BadRequestError
 from src.core.pagination import decode_cursor, encode_cursor
 from src.integrations.s3 import (
@@ -43,7 +47,17 @@ class SongService:
 
     async def _enrich_many(self, songs: list[Song]) -> list[SongResponse]:
         """Enrich a list of Song ORM objects with presigned cover URLs."""
-        return [await self._enrich_with_cover_url(s) for s in songs]
+        # gather, а не цикл: даже с общим клиентом подписание идёт через
+        # await, и последовательный обход растягивал бы выдачу списка.
+        return list(await asyncio.gather(*(self._enrich_with_cover_url(s) for s in songs)))
+
+    async def with_cover_urls(self, songs: list[Song]) -> list[SongResponse]:
+        """Публичная обёртка над обогащением обложками.
+
+        Нужна плейлистам: подписывать ссылки они должны так же, как медиатека,
+        а копия этой логики рано или поздно разошлась бы с оригиналом.
+        """
+        return await self._enrich_many(songs)
     
     async def get_upload_credentials(self, filename: str, file_type: str) -> dict:
 
@@ -159,12 +173,16 @@ class SongService:
         try:
             meta = await download_youtube_audio(url=url)
             audio_path = meta['file_path']
-            song_id = audio_path.split("/")[-1].replace(".mp3", "")
+            video_id = meta['video_id']
 
-            cover_path = await download_thumbnail(url=meta['cover_url'], song_id=song_id)
+            # Расширение больше не всегда .mp3 — перекодирование убрано,
+            # ютуб отдаёт m4a. Берём его из фактического имени файла.
+            ext = os.path.splitext(audio_path)[1].lstrip('.') or 'm4a'
 
-            r2_audio_key = f'{settings.R2_TRACKS_PREFIX}/{song_id}.mp3'
-            r2_cover_key = f'{settings.R2_COVERS_PREFIX}/{song_id}.jpg'
+            cover_path = await download_thumbnail(url=meta['cover_url'], song_id=video_id)
+
+            r2_audio_key = f'{settings.R2_TRACKS_PREFIX}/{video_id}.{ext}'
+            r2_cover_key = f'{settings.R2_COVERS_PREFIX}/{video_id}.jpg'
 
             await upload_file_object(
                 bucket=settings.R2_BUCKET,
@@ -179,16 +197,25 @@ class SongService:
             )
 
             song = SongCreate(
-                title=meta['title'],
+                title=meta['title'][:50],
                 duration=meta['duration'],
-                author=meta['author'],
+                author=meta['author'][:100],
                 audio_file_key=r2_audio_key,
-                cover_file_key=r2_cover_key
+                cover_file_key=r2_cover_key,
+                # Без этого синхронизация и рекомендации не понимают,
+                # что трек уже скачан, и предлагают его снова.
+                youtube_id=video_id,
             )
 
-            await self.repo.create(session=session, obj_in=song)
+            created = await self.repo.create(session=session, obj_in=song)
 
-            return {'status': 'success', 'title': meta['title']}
+            return {
+                'status': 'success',
+                'id': str(created.id),
+                'title': created.title,
+                'author': created.author,
+                'youtube_id': created.youtube_id,
+            }
         except Exception as e:
             raise e
         finally:
@@ -224,19 +251,127 @@ class SongService:
     async def create_song(self, session: AsyncSession, song_in: SongCreate):
         return await self.repo.create(session=session, obj_in=song_in)
 
-    async def search_songs(self, query: str) -> YouTubeSearchResponse:
+    async def search_library(
+        self,
+        session: AsyncSession,
+        *,
+        query: str,
+    ) -> list[SongResponse]:
+        """Поиск по своей медиатеке — по названию и исполнителю.
+
+        Раньше эта ручка звала search_youtube и объявляла ответ как
+        list[SongResponse]: сервис отдавал {results, query} с ютуба, ответ
+        не проходил валидацию, и эндпоинт падал всегда. Поиск по ютубу
+        живёт отдельно, в search_youtube_songs.
+        """
+        songs = await self.repo.search(session, query_str=query)
+        return await self._enrich_many(songs)
+
+    async def search_youtube_songs(self, query: str) -> dict:
         results = await search_youtube(query=query)
         return {"results": results, "query": query}
 
-    async def stream_without_download(self, video_id: str) -> dict:
-        return await get_youtube_stream_url(video_id=video_id)
+    @staticmethod
+    def _url_ttl(url: str) -> int:
+        """Сколько ссылке осталось жить, по её же параметру expire.
 
-    async def add_like(self, session: AsyncSession, song_id: UUID):
-        song = await self.repo.get(session=session, id=song_id)
-        if song is None:
+        YouTube кладёт в ссылку unix-время протухания. Берём его, а не
+        фиксированный срок: угадывать нельзя — отдадим просроченную ссылку,
+        и воспроизведение упадёт на середине очереди.
+
+        Вычитаем 10 минут про запас: между отдачей ссылки и нажатием play
+        может пройти время, а трек ещё и играть должен до конца.
+        """
+        match = re.search(r"[?&]expire=(\d+)", url)
+        if not match:
+            return 1800  # параметра нет — держим полчаса, это заведомо безопасно
+
+        remaining = int(match.group(1)) - int(time.time()) - 600
+        return max(remaining, 0)
+
+    async def stream_without_download(self, video_id: str) -> dict:
+        """Ссылка на поток без сохранения в медиатеку.
+
+        Результат кэшируется в Redis: извлечение занимает около двух секунд,
+        а чтение из кэша — миллисекунды. При переходе по очереди это разница
+        между паузой на каждом треке и мгновенным стартом.
+
+        Возвращает объект, а не голую строку: мобильный клиент читает
+        `response.stream_url ?? response.url` (см. streamUrls.ts), и на
+        строке оба поля были бы undefined — приложение бросало бы ошибку
+        даже при успешном ответе сервера.
+        """
+        redis = get_redis_client()
+        key = f"ytstream:{video_id}"
+
+        try:
+            cached = await redis.get(key)
+        except Exception:
+            cached = None  # Redis лёг — не повод ронять воспроизведение
+
+        if cached:
+            return {"stream_url": cached, "duration": 0}
+
+        url = await get_youtube_stream_url(video_id=video_id)
+
+        ttl = self._url_ttl(url)
+        if ttl > 0:
+            try:
+                await redis.setex(key, ttl, url)
+            except Exception:
+                pass  # не закэшировали — просто медленнее в следующий раз
+
+        return {"stream_url": url, "duration": 0}
+
+    async def is_liked(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        song_id: UUID,
+    ) -> bool:
+        return await self.repo.is_liked(session, user_id=user_id, song_id=song_id)
+
+    async def add_like(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        song_id: UUID,
+    ) -> dict:
+        """Ставит лайк. Идемпотентно: повтор не ошибка и счётчик не двигает."""
+        if await self.repo.get(session, song_id) is None:
             raise NotFoundError("Song", str(song_id))
-        
-        
+
+        await self.repo.add_like(session, user_id=user_id, song_id=song_id)
+        return {"song_id": song_id, "liked": True}
+
+    async def remove_like(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+        song_id: UUID,
+    ) -> dict:
+        """Снимает лайк. Тоже идемпотентно — «не было» не отличаем от «сняли»."""
+        if await self.repo.get(session, song_id) is None:
+            raise NotFoundError("Song", str(song_id))
+
+        await self.repo.remove_like(session, user_id=user_id, song_id=song_id)
+        return {"song_id": song_id, "liked": False}
+
+    async def list_liked(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: UUID,
+    ) -> list[SongResponse]:
+        song_ids = await self.repo.liked_ids(session, user_id=user_id)
+        if not song_ids:
+            return []
+
+        songs = [await self.repo.get(session, song_id) for song_id in song_ids]
+        return await self._enrich_many([song for song in songs if song is not None])
 
 
 

@@ -26,9 +26,11 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     email: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255))
+    verified: Mapped[bool] = mapped_column(default=False)
     
     role: Mapped[UserRole] = mapped_column(
         SQLEnum(UserRole, name='user_role_enum'),
+        default=UserRole.USER
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -43,16 +45,16 @@ class User(Base):
     )
 
     # Relationships 
-    playlists: Mapped[list[Playlist]] = relationship(
+    playlists: Mapped[list['Playlist']] = relationship(
         'Playlist',
         back_populates='user'
     )
-    liked_songs: Mapped[list[Song]] = relationship(
+    liked_songs: Mapped[list['Song']] = relationship(
         'Song',
         secondary=liked_songs
     )
 
-    refresh_token: Mapped[list[RefreshToken]] = relationship (
+    refresh_tokens: Mapped[list['RefreshToken']] = relationship (
         back_populates='user',
         passive_deletes=True
     )

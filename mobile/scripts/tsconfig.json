@@ -1,0 +1,14 @@
+{
+  "//": "Сборочные скрипты запускаются в Node, а не в React Native. Конфиг приложения им не подходит: там moduleResolution завязан на условие react-native, из-за чего типы Node не разрешаются.",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "skipLibCheck": true
+  },
+  "include": ["**/*.ts"]
+}

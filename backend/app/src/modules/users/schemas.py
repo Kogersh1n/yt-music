@@ -10,7 +10,8 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password: str = Field(min_length=8)
+    hashed_password: str = Field(min_length=8)
+    verified: bool = False
 
 
 class UserUpdate(BaseModel):

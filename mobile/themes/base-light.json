@@ -1,0 +1,24 @@
+{
+  "schema": "ytmusic-theme/1",
+  "id": "base-light",
+  "name": "Светлая",
+  "extends": "base-dark",
+  "mode": "light",
+  "colors": {
+    "bg": "#ffffff",
+    "surface": "#f2f2f2",
+    "surfaceHigh": "#e5e5e5",
+    "player": "#f8f8f8",
+    "border": "#dedede",
+    "text": "#0f0f0f",
+    "textDim": "#606060",
+    "textFaint": "#909090",
+    "brand": "#cc0022",
+    "accent": "#0f0f0f",
+    "onAccent": "#ffffff",
+    "danger": "#c5221f",
+    "scrim": "rgba(255,255,255,0.7)",
+    "skeleton": "#ededed",
+    "skeletonHighlight": "#f7f7f7"
+  }
+}

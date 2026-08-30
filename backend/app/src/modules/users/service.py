@@ -1,11 +1,9 @@
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio.session import AsyncSession
 
-from src.core.config import settings
 from src.core.exceptions import NotFoundError
 
-from src.modules.users.models import User
 from src.modules.users.repository import UserRepository, user_repo
 from src.modules.users.schemas import UserResponse
 
@@ -30,8 +28,7 @@ class UserService:
         return UserResponse.model_validate(user)
 
     async def user_exists(self, session: AsyncSession, *, email: str, username: str) -> bool:
-        return await self.repo.exists_by_username_or_email(session, email=email, username=username)
-    
+        return await self.repo.exists_by_email_or_username(session, email=email, username=username)
 
 
 user_service = UserService(repo=user_repo)

@@ -5,6 +5,9 @@ from sqlalchemy import URL
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file = ('.env', '../.env'),
+        # SMTP_* читает SMTPSettings, а не этот класс — без ignore
+        # pydantic отвергает их как лишние поля из .env
+        extra = 'ignore',
     )
 
     DEBUG: bool = False
@@ -19,6 +22,20 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_SECONDS: int = 60 * 60 * 24 * 30
     VERIFICATION_CODE_EXPIRE_SECONDS: int = 60 * 10
     PASSWORD_RESET_TOKEN_EXPIRE_SECONDS: int = 60 * 10
+
+    # Файл авторизации YouTube Music (ytmusicapi browser).
+    # Без него доступен только открытый поиск, личная библиотека — нет.
+    YTMUSIC_AUTH_FILE: str | None = None
+
+    # --- Доступ к YouTube ---
+    # Файл cookies в формате Netscape. Нужен, когда YouTube требует
+    # подтверждения «я не робот» — так бывает с IP дата-центров.
+    # Путь внутри контейнера; если файла нет, параметр просто не передаётся.
+    YTDLP_COOKIES_FILE: str | None = None
+    # Прокси для запросов к YouTube, например socks5://user:pass@host:1080.
+    # Нужен резидентный или мобильный: датацентровые заблокированы так же,
+    # как и сам сервер.
+    YTDLP_PROXY: str | None = None
 
     DB_HOST: str
     DB_PORT: int
@@ -52,6 +69,16 @@ class Settings(BaseSettings):
     def r2_public_endpoint_url(self) -> str:
         """URL, который получит браузер. Для local dev = http://localhost:9000"""
         return self.R2_PUBLIC_ENDPOINT_URL or self.r2_endpoint_url
+
+    @property
+    def redis_url(self) -> str:
+        """URL для celery-брокера и любых клиентов, ожидающих строку."""
+        auth = (
+            f":{self.REDIS_PASSWORD.get_secret_value()}@"
+            if self.REDIS_PASSWORD
+            else ""
+        )
+        return f"redis://{auth}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
     @property
     def db_url(self) -> URL:

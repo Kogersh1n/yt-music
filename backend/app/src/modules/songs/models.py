@@ -24,6 +24,13 @@ class Song(Base):
     title: Mapped[str] = mapped_column(String(50), index=True)
     duration: Mapped[int] = mapped_column()
 
+    # Идентификатор ролика на ютубе. Нужен, чтобы синхронизация понимала,
+    # какие треки из библиотеки YouTube Music уже скачаны, а какие ещё нет.
+    # Nullable: у залитых вручную файлов его нет.
+    youtube_id: Mapped[str | None] = mapped_column(
+        String(20), unique=True, index=True, default=None
+    )
+
     audio_file_key: Mapped[str] = mapped_column(String(255))
     cover_file_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
 

@@ -25,7 +25,9 @@ class RefreshToken(Base):
         ForeignKey('user.id', ondelete='CASCADE'),
         index=True
     )
-    token: Mapped[UUID] = mapped_column(String(512), unique=True, index=True)
+    family_id: Mapped[UUID] = mapped_column(index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now()
@@ -35,17 +37,20 @@ class RefreshToken(Base):
         DateTime(timezone=True),
         default=None,
     )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        default=None,
+    )
 
-    rotated_with_id: Mapped[UUID | None] = mapped_column(
+    replaced_with_id: Mapped[UUID | None] = mapped_column(
         SQLUuid,
         ForeignKey('refresh_token.id', ondelete='SET NULL'),
         default=None
     )
     
-    user: Mapped[User] = relationship(
+    user: Mapped['User'] = relationship(
         back_populates='refresh_tokens',
-        lazy='selectin'
     )
-    rotated_with: Mapped['RefreshToken'] = relationship(remote_side='RefreshToken.id')
+    replaced_with: Mapped['RefreshToken | None'] = relationship(remote_side='RefreshToken.id')
 
 

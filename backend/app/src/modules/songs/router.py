@@ -4,7 +4,7 @@ from fastapi import APIRouter,status,Query
 
 from src.modules.songs.schemas import *
 from src.modules.songs.service import song_service 
-from src.core.deps import SessionDep
+from src.core.deps import SessionDep, UserDep
 
 
 songs_router = APIRouter(prefix='/songs', tags=['song'])
@@ -27,7 +27,9 @@ async def upload_url(
 
 @songs_router.get(
     '/upload-cover-url',
-    response_model=SongCoverResponse
+    # Раньше здесь стоял SongCoverResponse ({cover_url}), а сервис отдаёт
+    # {upload_url, file_key} — ответ не проходил валидацию, и ручка падала.
+    response_model=UploadCredentialsResponse
         )
 async def upload_cover(*, filename: str, file_type: str):
     return await song_service.get_cover_upload_credentials(filename=filename, file_type=file_type)
@@ -37,9 +39,15 @@ async def upload_cover(*, filename: str, file_type: str):
     '/search',
     response_model=list[SongResponse],
 )
-async def search(q: str = Query(min_length=1)):
-    return await song_service.search_songs( query=q)
-    
+async def search(session: SessionDep, q: str = Query(min_length=1)):
+    """Поиск по своей медиатеке. Поиск по ютубу — /songs/youtube/search."""
+    return await song_service.search_library(session, query=q)
+
+
+@songs_router.get('/liked', response_model=list[SongResponse])
+async def liked_songs(session: SessionDep, user: UserDep):
+    return await song_service.list_liked(session, user_id=user.id)
+
 
 @songs_router.post(
     '/',
@@ -79,10 +87,10 @@ async def import_from_youtube(session: SessionDep, import_data: SongYoutubeImpor
     response_model=YouTubeSearchResponse,
 )
 async def youtube_search(q: str = Query(min_length=1, max_length=200)):
-    return await song_service.search_songs(query=q)
+    return await song_service.search_youtube_songs(query=q)
 
 
-@songs_router.get('/youtube/stream/{video_id}')
+@songs_router.get('/youtube/stream/{video_id}', response_model=SongStreamResponse)
 async def stream_without_saving(video_id: str):
     return await song_service.stream_without_download(video_id=video_id)
 
@@ -110,9 +118,14 @@ async def get_stream(session: SessionDep, song_id: UUID):
 async def get_cover(session: SessionDep, song_id: UUID):
     return await song_service.get_cover_url(session=session, song_id=song_id)
 
-# Routers for likes 
+# Routers for likes
 
 @songs_router.post('/{song_id}/like')
-async def add_like(session: SessionDep, song_id: UUID):
-    return await song_service.add_like(session=session, song_id=song_id)
+async def add_like(session: SessionDep, user: UserDep, song_id: UUID):
+    return await song_service.add_like(session, user_id=user.id, song_id=song_id)
+
+
+@songs_router.delete('/{song_id}/like')
+async def remove_like(session: SessionDep, user: UserDep, song_id: UUID):
+    return await song_service.remove_like(session, user_id=user.id, song_id=song_id)
 

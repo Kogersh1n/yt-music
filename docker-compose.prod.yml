@@ -1,0 +1,142 @@
+# Продовый стек. Отличия от docker-compose.yml (локального):
+#   * нет minio и minio-init — в проде настоящий Cloudflare R2;
+#   * нет mailpit — письма уходят через настоящий SMTP;
+#   * наружу не публикуется ничего, кроме web на 127.0.0.1 — снаружи
+#     сервер закрывает nginx, а ufw пускает только 22/80/443;
+#   * redis с паролем;
+#   * воркеру ограничен процессор: ffmpeg при импорте не должен
+#     выжирать оба ядра и мешать соседним проектам на этой машине.
+#
+# Запуск:  docker compose -f docker-compose.prod.yml up -d --build
+# Секреты: /opt/ytmusic/.env (см. backend/.env.example)
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ytmusic_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ytmusic_redis
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--save", "60", "1"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Cloudflare WARP как SOCKS5-выход для yt-dlp.
+  #
+  # YouTube блокирует адреса Oracle («Sign in to confirm you're not a bot»),
+  # а через WARP тот же запрос проходит. Проверено измерением: в одном
+  # контейнере, в одну секунду — напрямую отказ, через прокси opus 129k.
+  #
+  # Работает в контейнере, а не на хосте: `warp-cli` на хосте меняет
+  # маршрутизацию и может оборвать SSH. Здесь он изолирован.
+  warp:
+    image: caomingjun/warp:latest
+    container_name: ytmusic_warp
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      net.ipv4.conf.all.src_valid_mark: 1
+    volumes:
+      - warp_data:/var/lib/cloudflare-warp
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "-m", "10", "--socks5", "127.0.0.1:1080", "https://www.cloudflare.com/cdn-cgi/trace"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 60s
+
+  web:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ytmusic_backend
+    restart: unless-stopped
+    # Только на петлю: наружу проксирует nginx, он же держит TLS.
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      # Файл cookies для yt-dlp. Смонтирован на ЗАПИСЬ намеренно: yt-dlp
+      # сохраняет обновлённые cookies после каждого запроса, а YouTube их
+      # постоянно ротирует — с перезаписью они живут заметно дольше.
+      # Смонтируй файл, а не каталог: если файла нет, Docker создаст на его
+      # месте директорию и yt-dlp упадёт.
+      - ./secrets/cookies.txt:/run/secrets/cookies.txt
+      # Заголовки авторизации YouTube Music: читает лайки и плейлисты.
+      # Только на чтение — ytmusicapi в этот файл не пишет.
+      - ./secrets/ytmusic.json:/run/secrets/ytmusic.json:ro
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      REDIS_HOST: redis
+      # Весь yt-dlp идёт через WARP: напрямую YouTube этот сервер не пускает.
+      YTDLP_PROXY: socks5://warp:1080
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      warp:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ytmusic_worker
+    restart: unless-stopped
+    command: celery -A src.integrations.celery.client.celery_app worker --loglevel=info --concurrency=1
+    volumes:
+      # Файл cookies для yt-dlp. Смонтирован на ЗАПИСЬ намеренно: yt-dlp
+      # сохраняет обновлённые cookies после каждого запроса, а YouTube их
+      # постоянно ротирует — с перезаписью они живут заметно дольше.
+      # Смонтируй файл, а не каталог: если файла нет, Docker создаст на его
+      # месте директорию и yt-dlp упадёт.
+      - ./secrets/cookies.txt:/run/secrets/cookies.txt
+      # Заголовки авторизации YouTube Music: читает лайки и плейлисты.
+      # Только на чтение — ytmusicapi в этот файл не пишет.
+      - ./secrets/ytmusic.json:/run/secrets/ytmusic.json:ro
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      REDIS_HOST: redis
+      # Весь yt-dlp идёт через WARP: напрямую YouTube этот сервер не пускает.
+      YTDLP_PROXY: socks5://warp:1080
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      warp:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1500M
+
+volumes:
+  postgres_data:
+  redis_data:
+  warp_data:

@@ -1,0 +1,46 @@
+{
+  "schema": "ytmusic-theme/1",
+  "id": "catppuccin-mocha",
+  "name": "Catppuccin Mocha",
+  "author": "Catppuccin",
+  "extends": "base-dark",
+  "mode": "dark",
+  "palette": {
+    "base": "#1e1e2e",
+    "mantle": "#181825",
+    "crust": "#11111b",
+    "surface0": "#313244",
+    "surface1": "#45475a",
+    "text": "#cdd6f4",
+    "subtext0": "#a6adc8",
+    "overlay0": "#6c7086",
+    "mauve": "#cba6f7",
+    "red": "#f38ba8"
+  },
+  "colors": {
+    "bg": "$base",
+    "surface": "$surface0",
+    "surfaceHigh": "$surface1",
+    "player": "$mantle",
+    "border": "$surface1",
+    "text": "$text",
+    "textDim": "$subtext0",
+    "textFaint": "$overlay0",
+    "brand": "$red",
+    "accent": "$mauve",
+    "onAccent": "$crust",
+    "danger": "$red",
+    "scrim": "$crust@70",
+    "skeleton": "$mantle",
+    "skeletonHighlight": "$surface0"
+  },
+  "radius": {
+    "thumb": 8,
+    "card": 12,
+    "sheet": 20,
+    "chip": 999
+  },
+  "typography": {
+    "family": "IBM Plex Sans"
+  }
+}
