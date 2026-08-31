@@ -16,6 +16,7 @@ import { useTheme, useThemedStyles, type Theme } from '../src/ui/theme';
 import { useCurrentTrack, useQueue } from '../src/player/queueStore';
 import { usePlayback } from '../src/player/usePlayback';
 import { useIsLiked, toggleLike } from '../src/local/likes';
+import { trackKey } from '../src/api/types';
 
 /**
  * «Сейчас играет» — полноэкранный плеер.
@@ -37,7 +38,7 @@ export default function PlayerScreen() {
   const toggleShuffle = useQueue((state) => state.toggleShuffle);
   const error = useQueue((state) => state.error);
 
-  const liked = useIsLiked(track?.id ?? '');
+  const liked = useIsLiked(track ? trackKey(track) : '');
   const format = useTrackFormat(track);
 
   // Цвет обложки считается асинхронно. До ответа берётся уже известный
@@ -123,7 +124,7 @@ export default function PlayerScreen() {
             </View>
           </View>
 
-          <Pressable onPress={() => toggleLike(track.id)} hitSlop={12} style={styles.like}>
+          <Pressable onPress={() => toggleLike(trackKey(track))} hitSlop={12} style={styles.like}>
             <MaterialIcons
               name={liked ? 'favorite' : 'favorite-border'}
               size={24}

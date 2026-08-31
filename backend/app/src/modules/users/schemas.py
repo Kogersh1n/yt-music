@@ -5,7 +5,8 @@ from src.modules.users.enums import UserRole
 
 
 class UserBase(BaseModel):
-    username: str = Field(min_length=2, max_length=20)
+    # 50 — длина колонки в БД и верхняя граница RegisterRequest.
+    username: str = Field(min_length=2, max_length=50)
     email: str
 
 
@@ -15,7 +16,7 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
-    username: str | None = Field(None, min_length=2, max_length=20)
+    username: str | None = Field(None, min_length=2, max_length=50)
     email: str | None = None
 
 

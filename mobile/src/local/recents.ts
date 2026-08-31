@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { readJSON, writeJSON } from './storage';
-import type { Track } from '../api/types';
+import { trackKey, type Track } from '../api/types';
 
 /**
  * Недавно прослушанное — источник для секции «Слушать снова» на главной.
@@ -21,7 +21,10 @@ function subscribe(listener: () => void): () => void {
 
 export function pushRecent(track: Track): void {
   // Тот же трек не должен плодить дубликаты — поднимаем его наверх.
-  const next = [track, ...recents.filter((item) => item.id !== track.id)].slice(0, LIMIT);
+  // Сравниваем по каноническому ключу: скачанная песня и она же с ютуба
+  // это одна вещь, и в «недавнем» она должна быть одной строкой.
+  const key = trackKey(track);
+  const next = [track, ...recents.filter((item) => trackKey(item) !== key)].slice(0, LIMIT);
   recents = next;
   writeJSON(KEY, next);
   listeners.forEach((listener) => listener());

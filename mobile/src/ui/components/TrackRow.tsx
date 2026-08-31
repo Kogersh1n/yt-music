@@ -5,6 +5,7 @@ import { Thumb } from './Thumb';
 import { SwipeableRow } from './SwipeableRow';
 import { useTheme, useThemedStyles, formatDuration, type Theme } from '../theme';
 import { useIsLiked, toggleLike } from '../../local/likes';
+import { trackKey } from '../../api/types';
 import { useQueue } from '../../player/queueStore';
 import { tapMedium, notifySuccess } from '../haptics';
 import type { Track } from '../../api/types';
@@ -41,14 +42,14 @@ export const TrackRow = memo(function TrackRow({
 }: TrackRowProps) {
   const theme = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const liked = useIsLiked(track.id);
+  const liked = useIsLiked(trackKey(track));
   const addToQueue = useQueue((state) => state.addToQueue);
 
   const handlePress = useCallback(() => onPress(index), [onPress, index]);
   const handleMenu = useCallback(() => onMenu?.(track), [onMenu, track]);
 
   const handleLike = useCallback(() => {
-    toggleLike(track.id);
+    toggleLike(trackKey(track));
     tapMedium();
   }, [track.id]);
 

@@ -7,7 +7,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { setupPlayer } from '../src/player/setup';
-import { initSession } from '../src/auth/session';
+import { initSession, useIsSignedIn } from '../src/auth/session';
+import { syncPlays } from '../src/features/playsSync';
 import { useQueue } from '../src/player/queueStore';
 import { ThemeProvider, useTheme, useThemedStyles, FONT_ASSETS, type Theme } from '../src/ui/theme';
 
@@ -88,6 +89,19 @@ function Shell({ playerError }: { playerError: string | null }) {
   // экран входа поверх всего сломал бы и то, и другое. На логин уводит
   // только реальный 401, то есть когда сессия действительно кончилась
   // и обновить её не удалось.
+  // Журнал прослушиваний уходит на сервер: при запуске и раз в полчаса.
+  // Отправка идемпотентна, поэтому лишний вызов ничего не портит,
+  // а пропущенный догонит в следующий раз.
+  const signedIn = useIsSignedIn();
+
+  useEffect(() => {
+    if (!signedIn) return;
+
+    void syncPlays();
+    const timer = setInterval(() => void syncPlays(), 30 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, [signedIn]);
+
   useEffect(() => {
     initSession({
       // Путь относительный по той же причине, что и в (auth)/login.tsx:

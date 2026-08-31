@@ -9,6 +9,7 @@ import { EmptyState, ErrorState, TrackListSkeleton } from '../../src/ui/componen
 import { useTheme, useThemedStyles, type Theme } from '../../src/ui/theme';
 import { useLibrary, useLibraryFilter } from '../../src/features/useLibrary';
 import { useLikedIds, toggleLike } from '../../src/local/likes';
+import { trackKey } from '../../src/api/types';
 import { usePlayback } from '../../src/player/usePlayback';
 import { useCurrentTrack } from '../../src/player/queueStore';
 import type { Track } from '../../src/api/types';
@@ -65,7 +66,7 @@ export default function LibraryScreen() {
     [play, visible],
   );
 
-  const handleMenu = useCallback((track: Track) => toggleLike(track.id), []);
+  const handleMenu = useCallback((track: Track) => toggleLike(trackKey(track)), []);
 
   const renderItem = useCallback(
     ({ item, index }: { item: Track; index: number }) => (

@@ -9,6 +9,7 @@ import { CarouselSkeleton, ErrorState, EmptyState } from '../../src/ui/component
 import { useTheme, useThemedStyles, type Theme } from '../../src/ui/theme';
 import { useLibrary } from '../../src/features/useLibrary';
 import { useRecents } from '../../src/local/recents';
+import { useLikedCatalog, useRecommendations } from '../../src/features/useDiscover';
 import { usePlayback } from '../../src/player/usePlayback';
 import { useCurrentTrack } from '../../src/player/queueStore';
 import type { Track } from '../../src/api/types';
@@ -24,6 +25,11 @@ export default function HomeScreen() {
   const router = useRouter();
   const { tracks, isDemo, isLoading, error, refetch, isRefetching } = useLibrary();
   const recents = useRecents();
+
+  // Обе секции необязательные: без авторизации запрос не уходит, при
+  // ошибке раздел просто не рисуется. Медиатека от этого не страдает.
+  const { data: liked = [] } = useLikedCatalog();
+  const { data: recommended = [], isPending: pickingRecommendations } = useRecommendations();
   const { play } = usePlayback();
   const current = useCurrentTrack();
 
@@ -89,10 +95,10 @@ export default function HomeScreen() {
           <CarouselSkeleton />
           <CarouselSkeleton />
         </View>
-      ) : tracks.length === 0 ? (
+      ) : tracks.length === 0 && liked.length === 0 && recommended.length === 0 ? (
         <EmptyState
-          title="Медиатека пуста"
-          hint="Найдите трек на вкладке «Обзор» и добавьте его в медиатеку."
+          title="Пока пусто"
+          hint="Найдите трек на вкладке «Обзор» — его можно слушать сразу, не добавляя в медиатеку."
         />
       ) : (
         <>
@@ -100,7 +106,28 @@ export default function HomeScreen() {
             <Carousel title="Слушать снова" tracks={recents} onPressTrack={handlePlay} />
           ) : null}
 
-          <Carousel title="Новое" tracks={newest} onPressTrack={handlePlay} />
+          {/* Подбор по прослушанному. Пока сервер считает — скелетон:
+              запрос идёт несколько секунд, и пустое место на его месте
+              выглядело бы как поломка. */}
+          {pickingRecommendations ? (
+            <CarouselSkeleton />
+          ) : recommended.length > 0 ? (
+            <Carousel
+              title="Может понравиться"
+              tracks={recommended}
+              onPressTrack={handlePlay}
+            />
+          ) : null}
+
+          {liked.length > 0 ? (
+            <Carousel title="Из твоих лайков" tracks={liked} onPressTrack={handlePlay} />
+          ) : null}
+
+          {/* Медиатека может быть пустой, а лайки и подбор — нет:
+              заголовок без треков выглядел бы как поломка. */}
+          {newest.length > 0 ? (
+            <Carousel title="Новое" tracks={newest} onPressTrack={handlePlay} />
+          ) : null}
 
           {quickPicks.length > 0 ? (
             <View style={styles.section}>

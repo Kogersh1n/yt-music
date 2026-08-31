@@ -30,27 +30,33 @@ export const Scrubber = memo(function Scrubber() {
     [],
   );
 
-  const seekTo = useCallback(
-    (ratio: number) => {
-      // Отклик на отпускании, а не на каждом движении: иначе вибрация
-      // не смолкает всё время перетаскивания.
-      tapLight();
-      if (duration > 0) void TrackPlayer.seekTo(ratio * duration);
-      setDragRatio(null);
-    },
-    [duration],
-  );
-
   const clamp = useCallback(
     (x: number) => (width > 0 ? Math.max(0, Math.min(x / width, 1)) : 0),
     [width],
   );
 
+  const drag = useCallback((x: number) => setDragRatio(clamp(x)), [clamp]);
+
+  const seekTo = useCallback(
+    (x: number) => {
+      // Отклик на отпускании, а не на каждом движении: иначе вибрация
+      // не смолкает всё время перетаскивания.
+      tapLight();
+      if (duration > 0) void TrackPlayer.seekTo(clamp(x) * duration);
+      setDragRatio(null);
+    },
+    [clamp, duration],
+  );
+
+  // Колбэки жеста babel-плагин превращает в worklet'ы — они идут на UI-потоке.
+  // Считать здесь ничего нельзя: clamp — обычная JS-функция, и синхронный
+  // вызов её с UI-потока роняет приложение. Наружу уходит сырой event.x,
+  // вся арифметика живёт на JS-стороне (так же сделано в Slider).
   const gesture = Gesture.Pan()
     .minDistance(0)
-    .onBegin((event) => runOnJS(setDragRatio)(clamp(event.x)))
-    .onUpdate((event) => runOnJS(setDragRatio)(clamp(event.x)))
-    .onEnd((event) => runOnJS(seekTo)(clamp(event.x)));
+    .onBegin((event) => runOnJS(drag)(event.x))
+    .onUpdate((event) => runOnJS(drag)(event.x))
+    .onEnd((event) => runOnJS(seekTo)(event.x));
 
   const playedRatio = duration > 0 ? Math.min(position / duration, 1) : 0;
   const ratio = dragRatio ?? playedRatio;

@@ -39,4 +39,6 @@ async def recommendations(
     Авторизация в YouTube Music не требуется: «радио по треку» публично.
     Чем выше score, тем на большее число твоих треков похож кандидат.
     """
-    return await sync_service.recommendations(session, seeds=seeds, limit=limit)
+    return await sync_service.recommendations(
+        session, user_id=user.id, seeds=seeds, limit=limit
+    )

@@ -7,6 +7,8 @@
 
 export interface SongResponse {
   id: string;
+  /** video_id, если песня пришла с ютуба. У залитых файлом его нет. */
+  youtube_id?: string | null;
   title: string;
   author: string;
   duration: number;
@@ -70,6 +72,27 @@ export interface Track {
   youtubeId?: string;
 }
 
+/**
+ * Устойчивый идентификатор трека — по нему считаются лайки, история
+ * и «недавнее».
+ *
+ * Проблема, которую он решает: у одной и той же песни два разных `id`.
+ * Скачанная в медиатеку — это UUID, она же напрямую с ютуба — `yt:<video_id>`.
+ * Пока ключом был `id`, лайк, поставленный при прослушивании с ютуба,
+ * не виден на скачанной версии, а в истории они считались разными треками.
+ *
+ * `youtubeId` есть у обеих форм, поэтому он и берётся за основу. Для
+ * залитых файлом песен его нет — там остаётся UUID, и это верно: у такой
+ * песни второй формы не существует.
+ *
+ * Для самого плеера по-прежнему используется `id`: движок и очередь
+ * должны сходиться между собой, а канонический ключ нужен там, где
+ * речь о песне как о сущности, а не о конкретной позиции в очереди.
+ */
+export function trackKey(track: Track): string {
+  return track.youtubeId ?? track.id;
+}
+
 export function trackFromSong(song: SongResponse): Track {
   return {
     id: song.id,
@@ -78,6 +101,10 @@ export function trackFromSong(song: SongResponse): Track {
     duration: song.duration,
     artwork: song.cover_url,
     source: 'library',
+    // Переносим обязательно: без него скачанная песня и она же,
+    // сыгранная напрямую с ютуба, выглядят как два разных трека —
+    // лайк на одной не виден на другой. См. trackKey ниже.
+    youtubeId: song.youtube_id ?? undefined,
   };
 }
 

@@ -41,7 +41,10 @@ class ResetPasswordRequest(BaseModel):
 
 class VerificationData(BaseModel):
     code: str = Field(min_length=5, max_length=5)
-    username: str = Field(min_length=5, max_length=50)
+    # Границы обязаны совпадать с RegisterRequest: имя приходит уже проверенным
+    # при регистрации, и если здесь рамки уже, то /auth/verify падает с 500
+    # на данных, которые /auth/register принял.
+    username: str = Field(min_length=2, max_length=50)
     hashed_password: str
 
 
