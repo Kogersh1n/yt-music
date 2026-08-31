@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import TrackPlayer, { useProgress } from 'react-native-track-player';
@@ -25,15 +25,27 @@ export const Scrubber = memo(function Scrubber() {
   const [width, setWidth] = useState(0);
   const [dragRatio, setDragRatio] = useState<number | null>(null);
 
+  // Свежие значения держим в ref, а не в замыкании колбэков.
+  //
+  // useProgress(1000) перерисовывает компонент раз в секунду. Пока clamp
+  // и seekTo зависели от width и duration напрямую, вместе с ними
+  // пересоздавался и жест — а перетаскивание, начатое до пересоздания,
+  // терялось: onEnd не приходил и перемотки не случалось. Отсюда
+  // и «работает через раз».
+  const durationRef = useRef(duration);
+  durationRef.current = duration;
+  const widthRef = useRef(width);
+  widthRef.current = width;
+
   const onLayout = useCallback(
     (event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width),
     [],
   );
 
-  const clamp = useCallback(
-    (x: number) => (width > 0 ? Math.max(0, Math.min(x / width, 1)) : 0),
-    [width],
-  );
+  const clamp = useCallback((x: number) => {
+    const w = widthRef.current;
+    return w > 0 ? Math.max(0, Math.min(x / w, 1)) : 0;
+  }, []);
 
   const drag = useCallback((x: number) => setDragRatio(clamp(x)), [clamp]);
 
@@ -42,21 +54,28 @@ export const Scrubber = memo(function Scrubber() {
       // Отклик на отпускании, а не на каждом движении: иначе вибрация
       // не смолкает всё время перетаскивания.
       tapLight();
-      if (duration > 0) void TrackPlayer.seekTo(clamp(x) * duration);
+      const total = durationRef.current;
+      if (total > 0) void TrackPlayer.seekTo(clamp(x) * total);
       setDragRatio(null);
     },
-    [clamp, duration],
+    [clamp],
   );
 
   // Колбэки жеста babel-плагин превращает в worklet'ы — они идут на UI-потоке.
   // Считать здесь ничего нельзя: clamp — обычная JS-функция, и синхронный
   // вызов её с UI-потока роняет приложение. Наружу уходит сырой event.x,
   // вся арифметика живёт на JS-стороне (так же сделано в Slider).
-  const gesture = Gesture.Pan()
-    .minDistance(0)
-    .onBegin((event) => runOnJS(drag)(event.x))
-    .onUpdate((event) => runOnJS(drag)(event.x))
-    .onEnd((event) => runOnJS(seekTo)(event.x));
+  // Жест создаётся один раз: колбэки стабильны, значения берутся из ref.
+  // Без этого он пересоздавался при каждом тике прогресса.
+  const gesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .minDistance(0)
+        .onBegin((event) => runOnJS(drag)(event.x))
+        .onUpdate((event) => runOnJS(drag)(event.x))
+        .onEnd((event) => runOnJS(seekTo)(event.x)),
+    [drag, seekTo],
+  );
 
   const playedRatio = duration > 0 ? Math.min(position / duration, 1) : 0;
   const ratio = dragRatio ?? playedRatio;

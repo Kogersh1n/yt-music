@@ -41,6 +41,15 @@ def _translate_yt_error(exc: Exception) -> Exception:
     """
     text = str(exc)
 
+    # Возрастное ограничение проверяем ПЕРВЫМ: его сообщение тоже начинается
+    # с «Sign in to confirm», и общая ветка про бот-проверку перехватывала бы
+    # его, показывая пользователю неверную причину.
+    if "confirm your age" in text:
+        return BadRequestError(
+            "Трек с возрастным ограничением — для него нужны cookies "
+            "аккаунта с подтверждённым возрастом"
+        )
+
     if "Sign in to confirm" in text or "not a bot" in text:
         return ExternalServiceError(
             "YouTube",
@@ -50,9 +59,6 @@ def _translate_yt_error(exc: Exception) -> Exception:
 
     if "Video unavailable" in text or "Private video" in text:
         return BadRequestError("Видео недоступно")
-
-    if "age" in text.lower() and "restrict" in text.lower():
-        return BadRequestError("Видео с возрастным ограничением")
 
     return ExternalServiceError("YouTube", "не удалось получить данные о видео")
 

@@ -104,10 +104,10 @@ function Shell({ playerError }: { playerError: string | null }) {
 
   useEffect(() => {
     initSession({
-      // Путь относительный по той же причине, что и в (auth)/login.tsx:
-      // типы роутов в .expo/ генерирует dev-сервер, и новые абсолютные пути
-      // не типизированы до первого запуска.
-      onUnauthorized: () => router.push('./(auth)/login'),
+      // Путь абсолютный. Относительный здесь опасен: он разворачивается
+      // от текущего экрана, и из вкладки (tabs) '(auth)/login' превращался
+      // бы в '/(tabs)/(auth)/login' — такого роута нет, и вход не открывался.
+      onUnauthorized: () => router.push('/(auth)/login'),
     });
   }, [router]);
 

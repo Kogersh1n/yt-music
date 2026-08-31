@@ -92,11 +92,9 @@ export default function LoginScreen() {
           disabled={!email.trim() || !password}
         />
 
-        {/* Путь относительный: типы роутов в .expo/ генерирует dev-сервер,
-            и абсолютный '/(auth)/register' до первого запуска не типизирован. */}
         <LinkButton
           label="Нет аккаунта — зарегистрироваться"
-          onPress={() => router.push('./register')}
+          onPress={() => router.push('/(auth)/register')}
         />
       </ScrollView>
     </KeyboardAvoidingView>

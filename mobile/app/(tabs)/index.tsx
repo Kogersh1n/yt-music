@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -12,6 +12,7 @@ import { useRecents } from '../../src/local/recents';
 import { useLikedCatalog, useRecommendations } from '../../src/features/useDiscover';
 import { usePlayback } from '../../src/player/usePlayback';
 import { useCurrentTrack } from '../../src/player/queueStore';
+import { prefetchStreamUrl } from '../../src/player/streamUrls';
 import type { Track } from '../../src/api/types';
 
 /**
@@ -30,6 +31,21 @@ export default function HomeScreen() {
   // ошибке раздел просто не рисуется. Медиатека от этого не страдает.
   const { data: liked = [] } = useLikedCatalog();
   const { data: recommended = [], isPending: pickingRecommendations } = useRecommendations();
+
+  // Прогрев ссылок на самые вероятные первые нажатия.
+  //
+  // Ссылка на трек с ютуба извлекается на сервере около полутора секунд,
+  // и первое нажатие ждёт их целиком: очередь ещё не начата, упреждающая
+  // загрузка не сработала. После прогрева запуск укладывается в треть
+  // секунды — измерено на сервере.
+  //
+  // Греем по одному треку из раздела, а не весь список: цель — убрать
+  // задержку у вероятного нажатия, а не выгрести половину выдачи ютуба.
+  useEffect(() => {
+    for (const track of [recents[0], recommended[0], liked[0]]) {
+      if (track) prefetchStreamUrl(track);
+    }
+  }, [recents, recommended, liked]);
   const { play } = usePlayback();
   const current = useCurrentTrack();
 

@@ -134,7 +134,7 @@ export default function ProfileScreen() {
           onPress={() => {
             tapMedium();
             if (!signedIn) {
-              router.push('./(auth)/login');
+              router.push('/(auth)/login');
               return;
             }
             Alert.alert('Выйти из аккаунта?', 'Лайки и настройки останутся на телефоне.', [
