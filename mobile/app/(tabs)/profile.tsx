@@ -161,6 +161,17 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {/* --- Итоги --- */}
+      <Text style={styles.section}>Итоги</Text>
+      <Pressable style={styles.link} onPress={() => router.push('/recap')}>
+        <MaterialIcons name="insights" size={22} color={theme.colors.text} />
+        <View style={styles.linkText}>
+          <Text style={styles.linkTitle}>Итоги месяца</Text>
+          <Text style={styles.linkHint}>Что и сколько вы слушали</Text>
+        </View>
+        <MaterialIcons name="chevron-right" size={22} color={theme.colors.textFaint} />
+      </Pressable>
+
       {/* --- Оформление --- */}
       <Text style={styles.section}>Оформление</Text>
       <Pressable style={styles.link} onPress={() => router.push('/settings')}>

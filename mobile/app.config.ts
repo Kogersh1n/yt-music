@@ -18,7 +18,7 @@ const config: ExpoConfig = {
   name: 'YT Music',
   slug: 'ytmusic',
   scheme: 'ytmusic',
-  version: '1.0.5',
+  version: '1.0.6',
   orientation: 'portrait',
   userInterfaceStyle: 'dark',
   backgroundColor: '#030303',
@@ -26,7 +26,7 @@ const config: ExpoConfig = {
 
   android: {
     package: 'com.duklet.ytmusic',
-    versionCode: 6,
+    versionCode: 7,
     predictiveBackGestureEnabled: false,
     adaptiveIcon: {
       backgroundColor: '#030303',
