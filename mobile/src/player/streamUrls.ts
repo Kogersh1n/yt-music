@@ -23,10 +23,41 @@ interface CachedUrl {
   expiresAt: number;
 }
 
+/**
+ * Потолок кэша.
+ *
+ * Ссылки googlevideo длинные — под тысячу символов каждая, — а кэш ничего
+ * не удалял: за долгую сессию он копил запись на каждый когда-либо
+ * включённый трек и не отпускал ни одной. Ста хватает с запасом: столько
+ * треков подряд за сеанс не слушают, а протухшие всё равно перезапрашиваются.
+ */
+const CACHE_LIMIT = 100;
+
 const cache = new Map<string, CachedUrl>();
 
 function isFresh(entry: CachedUrl): boolean {
   return Date.now() < entry.expiresAt - SAFETY_MARGIN_MS;
+}
+
+/**
+ * Освободить место под новую запись.
+ *
+ * Сначала выбрасываем протухшее — оно бесполезно по определению. Если
+ * всё ещё тесно, уходит самая старая запись: Map хранит порядок вставки,
+ * и для очереди воспроизведения он совпадает с порядком обращения.
+ */
+function evictIfNeeded(): void {
+  if (cache.size < CACHE_LIMIT) return;
+
+  for (const [key, entry] of cache) {
+    if (!isFresh(entry)) cache.delete(key);
+  }
+
+  while (cache.size >= CACHE_LIMIT) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
 }
 
 /**
@@ -38,6 +69,7 @@ export async function resolveStreamUrl(track: Track, force = false): Promise<str
   if (!force && cached && isFresh(cached)) return cached.url;
 
   const resolved = await fetchStreamUrl(track);
+  evictIfNeeded();
   cache.set(track.id, resolved);
   return resolved.url;
 }

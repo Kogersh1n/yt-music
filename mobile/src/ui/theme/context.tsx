@@ -119,13 +119,37 @@ export function useThemeControls(): ThemeContextValue {
 }
 
 /**
+ * Общий кэш собранных стилей: одна запись на фабрику.
+ *
+ * useMemo кэширует на экземпляр компонента, а не на приложение. В медиатеке
+ * одновременно живут десятки строк, и каждая собирала собственную копию
+ * ровно тех же стилей — десятки объектов StyleSheet вместо одного.
+ *
+ * Хранится одна запись на фабрику, а не таблица по темам: тема меняется
+ * сразу для всего приложения, поэтому вторая запись никогда не пригодилась бы,
+ * а редактор тем, где новый объект темы рождается на каждое движение
+ * ползунка, за сеанс накопил бы их сотни. WeakMap по фабрике — чтобы
+ * выгруженный модуль экрана не держал стили вечно.
+ */
+const styleCache = new WeakMap<object, { theme: Theme; styles: unknown }>();
+
+function buildStyles<T>(factory: (theme: Theme) => T, theme: Theme): T {
+  const hit = styleCache.get(factory);
+  if (hit && hit.theme === theme) return hit.styles as T;
+
+  const styles = factory(theme);
+  styleCache.set(factory, { theme, styles });
+  return styles;
+}
+
+/**
  * Стили, пересобираемые при смене темы.
  *
- * `factory` обязана быть объявлена вне компонента — тогда её ссылка стабильна
- * и useMemo действительно кэширует, пересобирая стили ровно на смену темы,
- * а не на каждый рендер.
+ * `factory` обязана быть объявлена вне компонента — тогда её ссылка стабильна,
+ * и все экземпляры компонента получают один и тот же объект стилей,
+ * собранный ровно один раз на смену темы.
  */
 export function useThemedStyles<T>(factory: (theme: Theme) => T): T {
   const theme = useTheme();
-  return useMemo(() => factory(theme), [theme, factory]);
+  return useMemo(() => buildStyles(factory, theme), [theme, factory]);
 }

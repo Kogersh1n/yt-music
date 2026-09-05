@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,10 +11,12 @@ import { useLibrary, useLibraryFilter } from '../../src/features/useLibrary';
 import { useLikedIds, toggleLike } from '../../src/local/likes';
 import { trackKey } from '../../src/api/types';
 import { usePlayback } from '../../src/player/usePlayback';
-import { useCurrentTrack } from '../../src/player/queueStore';
 import type { Track } from '../../src/api/types';
 
 type Filter = 'all' | 'liked' | 'downloaded';
+
+/** Вынесен из компонента: иначе новая функция на каждый рендер списка. */
+const keyExtractor = (item: Track) => item.id;
 
 /**
  * Медиатека. Длинный список, поэтому FlashList: строки переиспользуются,
@@ -40,7 +42,6 @@ export default function LibraryScreen() {
 
   const likedIds = useLikedIds();
   const { play } = usePlayback();
-  const current = useCurrentTrack();
 
   /**
    * Фильтр «Понравившиеся» работает по локальным лайкам.
@@ -61,24 +62,24 @@ export default function LibraryScreen() {
   // Фильтрация локальная и мгновенная — сеть не трогаем, дебаунс не нужен.
   const visible = useLibraryFilter(query, byFilter);
 
-  const handlePress = useCallback(
-    (index: number) => play(visible, index),
-    [play, visible],
-  );
+  // Отфильтрованный список держим в ref, а не в замыкании обработчика.
+  //
+  // Пока handlePress зависел от visible, он пересоздавался на каждое нажатие
+  // клавиши в поиске, за ним пересоздавался renderItem, а FlashList на смену
+  // renderItem перерисовывает все видимые строки. Теперь обработчик стабилен,
+  // и при вводе перерисовывается только то, что реально изменилось.
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
+
+  const handlePress = useCallback((index: number) => play(visibleRef.current, index), [play]);
 
   const handleMenu = useCallback((track: Track) => toggleLike(trackKey(track)), []);
 
   const renderItem = useCallback(
     ({ item, index }: { item: Track; index: number }) => (
-      <TrackRow
-        track={item}
-        index={index}
-        isActive={current?.id === item.id}
-        onPress={handlePress}
-        onMenu={handleMenu}
-      />
+      <TrackRow track={item} index={index} onPress={handlePress} onMenu={handleMenu} />
     ),
-    [handlePress, handleMenu, current?.id],
+    [handlePress, handleMenu],
   );
 
   const handleEndReached = useCallback(() => {
@@ -140,7 +141,7 @@ export default function LibraryScreen() {
         <FlashList
           data={visible as Track[]}
           renderItem={renderItem}
-          keyExtractor={(item) => item.id}
+          keyExtractor={keyExtractor}
           onEndReached={handleEndReached}
           onEndReachedThreshold={0.6}
           contentContainerStyle={styles.list}

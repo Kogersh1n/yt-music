@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -10,9 +10,11 @@ import { useTheme, useThemedStyles, type Theme } from '../../src/ui/theme';
 import { useLibrary } from '../../src/features/useLibrary';
 import { useRecents } from '../../src/local/recents';
 import { usePlayback } from '../../src/player/usePlayback';
-import { useCurrentTrack } from '../../src/player/queueStore';
 import { prefetchStreamUrl } from '../../src/player/streamUrls';
 import type { Track } from '../../src/api/types';
+
+const NEWEST_COUNT = 10;
+const QUICK_PICKS_START = 10;
 
 /**
  * Главная. Композиция каруселей поверх одной ленты медиатеки — вся логика
@@ -35,25 +37,27 @@ export default function HomeScreen() {
     if (recents[0]) prefetchStreamUrl(recents[0]);
   }, [recents]);
   const { play } = usePlayback();
-  const current = useCurrentTrack();
 
   const handlePlay = useCallback(
     (list: readonly Track[], index: number) => play(list, index),
     [play],
   );
 
-  const handleRowPress = useCallback(
-    (index: number) => play(tracks, index),
-    [play, tracks],
-  );
+  const tracksRef = useRef(tracks);
+  tracksRef.current = tracks;
+
+  const handleRowPress = useCallback((index: number) => play(tracksRef.current, index), [play]);
 
   /**
    * Секция называется «Новое», а не «Рекомендуем»: сортировка на бэкенде —
    * по дате добавления, никакой рекомендательной логики за этим нет.
    * Врать в подписи не хочется.
    */
-  const newest = useMemo(() => tracks.slice(0, 10), [tracks]);
-  const quickPicks = useMemo(() => tracks.slice(10, 20), [tracks]);
+  const newest = useMemo(() => tracks.slice(0, NEWEST_COUNT), [tracks]);
+  const quickPicks = useMemo(
+    () => tracks.slice(QUICK_PICKS_START, QUICK_PICKS_START + NEWEST_COUNT),
+    [tracks],
+  );
 
   if (error && tracks.length === 0) {
     return (
@@ -117,18 +121,17 @@ export default function HomeScreen() {
           {quickPicks.length > 0 ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Быстрый выбор</Text>
-              {quickPicks.map((track) => {
-                const index = tracks.indexOf(track);
-                return (
-                  <TrackRow
-                    key={track.id}
-                    track={track}
-                    index={index}
-                    isActive={current?.id === track.id}
-                    onPress={handleRowPress}
-                  />
-                );
-              })}
+              {/* Индекс считаем арифметикой, а не indexOf: quickPicks —
+                  это срез tracks с 10-го, и поиск по всей медиатеке
+                  на каждую из десяти строк был чистой тратой. */}
+              {quickPicks.map((track, offset) => (
+                <TrackRow
+                  key={track.id}
+                  track={track}
+                  index={QUICK_PICKS_START + offset}
+                  onPress={handleRowPress}
+                />
+              ))}
             </View>
           ) : null}
         </>

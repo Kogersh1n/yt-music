@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useRef } from 'react';
 import { FlatList, type ListRenderItemInfo, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Thumb } from './Thumb';
 import { useTheme, useThemedStyles, type Theme } from '../theme';
@@ -19,11 +19,25 @@ export const Carousel = memo(function Carousel({ title, tracks, onPressTrack }: 
   const theme = useTheme();
   const styles = useThemedStyles(makeStyles);
 
+  // Свежий список держим в ref, а не в замыкании обработчика.
+  //
+  // Раньше карточка получала onPress={() => onPressTrack(tracks, index)} —
+  // новую функцию на каждый рендер карусели. memo(Card) от этого не спасал:
+  // свойство менялось всегда, и перерисовывались все карточки сразу.
+  // Теперь обработчик стабилен, а список берётся из ref в момент нажатия.
+  const tracksRef = useRef(tracks);
+  tracksRef.current = tracks;
+
+  const handlePress = useCallback(
+    (index: number) => onPressTrack(tracksRef.current, index),
+    [onPressTrack],
+  );
+
   const renderItem = useCallback(
     ({ item, index }: ListRenderItemInfo<Track>) => (
-      <Card track={item} onPress={() => onPressTrack(tracks, index)} />
+      <Card track={item} index={index} onPress={handlePress} />
     ),
-    [tracks, onPressTrack],
+    [handlePress],
   );
 
   const keyExtractor = useCallback((item: Track) => item.id, []);
@@ -59,12 +73,21 @@ export const Carousel = memo(function Carousel({ title, tracks, onPressTrack }: 
   );
 });
 
-const Card = memo(function Card({ track, onPress }: { track: Track; onPress: () => void }) {
+const Card = memo(function Card({
+  track,
+  index,
+  onPress,
+}: {
+  track: Track;
+  index: number;
+  onPress: (index: number) => void;
+}) {
   const theme = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const handlePress = useCallback(() => onPress(index), [onPress, index]);
 
   return (
-    <Pressable onPress={onPress} style={styles.card}>
+    <Pressable onPress={handlePress} style={styles.card}>
       <Thumb
         uri={track.artwork}
         seed={track.title}

@@ -26,8 +26,16 @@ interface Scored<T> {
  * есть в обоих.
  */
 export function scoreMatch(text: string, query: string): number | null {
-  const haystack = text.toLowerCase();
-  const needle = query.toLowerCase();
+  return scoreLowered(text.toLowerCase(), query.toLowerCase());
+}
+
+/**
+ * То же, но обе строки уже приведены к нижнему регистру.
+ *
+ * Отдельная функция нужна, чтобы `fuzzyFilter` привёл запрос один раз,
+ * а не на каждый из тысяч вызовов.
+ */
+function scoreLowered(haystack: string, needle: string): number | null {
   if (needle === '') return 0;
   if (needle.length > haystack.length) return null;
 
@@ -74,15 +82,21 @@ export function fuzzyFilter<T>(
   fields: readonly FuzzyField<T>[],
 ): T[] {
   const trimmed = query.trim();
-  if (trimmed === '') return [...items];
+  // Исходная ссылка, а не копия: пустой запрос — обычное состояние экрана
+  // медиатеки, и копировать на нём весь список незачем. Массив никто
+  // не мутирует — очередь плеера копирует его у себя.
+  if (trimmed === '') return items as T[];
 
+  // Запрос приводится к нижнему регистру один раз на весь список, а не на
+  // каждый его элемент: на тысяче треков это была тысяча лишних вызовов.
+  const needle = trimmed.toLowerCase();
   const scored: Scored<T>[] = [];
 
   for (const item of items) {
     let best: number | null = null;
 
     for (const field of fields) {
-      const score = scoreMatch(field.get(item), trimmed);
+      const score = scoreLowered(field.get(item).toLowerCase(), needle);
       if (score === null) continue;
       const weighted = score * field.weight;
       if (best === null || weighted > best) best = weighted;

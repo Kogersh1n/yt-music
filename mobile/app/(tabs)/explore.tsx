@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -29,6 +29,9 @@ type Scope = 'library' | 'youtube';
  * (через бэкенд). Ввод дебаунсится, предыдущий запрос отменяется — иначе при
  * быстром наборе результаты «прыгают», как это происходит в вебе.
  */
+/** Вынесен из компонента: иначе новая функция на каждый рендер. */
+const keyExtractor = (item: Track) => item.id;
+
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
@@ -56,10 +59,12 @@ export default function ExploreScreen() {
     onError: (error: Error) => Alert.alert('Не удалось добавить', error.message),
   });
 
-  const handlePress = useCallback(
-    (index: number) => play(results, index),
-    [play, results],
-  );
+  // Список результатов — в ref: иначе новый handlePress на каждую выдачу
+  // поиска пересоздаёт renderItem и перерисовывает весь список целиком.
+  const resultsRef = useRef(results);
+  resultsRef.current = results;
+
+  const handlePress = useCallback((index: number) => play(resultsRef.current, index), [play]);
 
   const handleMenu = useCallback(
     (track: Track) => {
@@ -201,7 +206,7 @@ function Body({
     <FlashList
       data={results as Track[]}
       renderItem={renderItem}
-      keyExtractor={(item) => item.id}
+      keyExtractor={keyExtractor}
       contentContainerStyle={contentContainerStyle}
       keyboardShouldPersistTaps="handled"
     />

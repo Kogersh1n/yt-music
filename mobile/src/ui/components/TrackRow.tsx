@@ -16,13 +16,17 @@ import type { Track } from '../../api/types';
  * Мемоизирована, обработчики стабильны: в медиатеке таких строк сотни,
  * и каждая лишняя перерисовка видна на скролле. Стили пересобираются
  * только при смене темы.
+ *
+ * Подсветку играющего трека строка берёт подпиской, а не свойством.
+ * Со свойством её приходилось вычислять в renderItem списка, renderItem
+ * менялся при каждой смене трека, и вместе с ним перерисовывались все
+ * строки разом. Селектор отдаёт булево, поэтому при переключении трека
+ * обновляются ровно две строки: та, что погасла, и та, что зажглась.
  */
 
 interface TrackRowProps {
   track: Track;
   index: number;
-  /** Подсветка играющего трека. */
-  isActive?: boolean;
   onPress: (index: number) => void;
   onMenu?: (track: Track) => void;
   /**
@@ -35,7 +39,6 @@ interface TrackRowProps {
 export const TrackRow = memo(function TrackRow({
   track,
   index,
-  isActive = false,
   onPress,
   onMenu,
   swipeable = true,
@@ -44,6 +47,7 @@ export const TrackRow = memo(function TrackRow({
   const styles = useThemedStyles(makeStyles);
   const liked = useIsLiked(trackKey(track));
   const addToQueue = useQueue((state) => state.addToQueue);
+  const isActive = useQueue((state) => state.queue[state.index]?.id === track.id);
 
   const handlePress = useCallback(() => onPress(index), [onPress, index]);
   const handleMenu = useCallback(() => onMenu?.(track), [onMenu, track]);
@@ -51,7 +55,7 @@ export const TrackRow = memo(function TrackRow({
   const handleLike = useCallback(() => {
     toggleLike(trackKey(track));
     tapMedium();
-  }, [track.id]);
+  }, [track]);
 
   const handleQueue = useCallback(() => {
     addToQueue(track);

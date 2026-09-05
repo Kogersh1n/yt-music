@@ -1,3 +1,4 @@
+import { AppState } from 'react-native';
 import { create } from 'zustand';
 import TrackPlayer, { RepeatMode as RNTPRepeatMode } from 'react-native-track-player';
 import type { Track } from '../api/types';
@@ -105,7 +106,7 @@ export const useQueue = create<QueueState & QueueActions>((set, get) => ({
     // Полная перезарядка через loadCurrent() сбросила бы весь прогрев.
     if (await skipWithinPlayer(queue[nextIndex]?.id)) {
       set({ index: nextIndex });
-      persist(get());
+      persist();
       await refillLookahead(get());
       return;
     }
@@ -162,7 +163,7 @@ export const useQueue = create<QueueState & QueueActions>((set, get) => ({
       set({ shuffle: true, queue: next, index: 0, originalOrder: queue });
     }
 
-    persist(get());
+    persist();
     await refillLookahead(get());
   },
 
@@ -175,14 +176,14 @@ export const useQueue = create<QueueState & QueueActions>((set, get) => ({
     await TrackPlayer.setRepeatMode(
       next === 'one' ? RNTPRepeatMode.Track : RNTPRepeatMode.Off,
     );
-    persist(get());
+    persist();
   },
 
   addToQueue: (track) => {
     const { queue } = get();
     if (queue.some((item) => item.id === track.id)) return;
     set({ queue: [...queue, track] });
-    persist(get());
+    persist();
   },
 
   removeFromQueue: (target) => {
@@ -190,7 +191,7 @@ export const useQueue = create<QueueState & QueueActions>((set, get) => ({
     if (target === index) return; // играющий трек не выкидываем
     const next = queue.filter((_, i) => i !== target);
     set({ queue: next, index: target < index ? index - 1 : index });
-    persist(get());
+    persist();
   },
 
   moveInQueue: (from, to) => {
@@ -204,7 +205,7 @@ export const useQueue = create<QueueState & QueueActions>((set, get) => ({
     const currentId = queue[index]?.id;
     const newIndex = Math.max(next.findIndex((track) => track.id === currentId), 0);
     set({ queue: next, index: newIndex });
-    persist(get());
+    persist();
   },
 
   syncFromPlayer: (activeTrackId) => {
@@ -223,7 +224,7 @@ export const useQueue = create<QueueState & QueueActions>((set, get) => ({
         // именно здесь становится известно, сколько тот проиграл.
         beginPlay(track);
       }
-      persist(get());
+      persist();
       void refillLookahead(get());
     }
   },
@@ -294,7 +295,7 @@ async function loadCurrent(
       beginPlay(track);
     }
     set({ isLoading: false });
-    persist(get());
+    persist();
 
     await refillLookahead(get());
   } catch (error) {
@@ -362,7 +363,23 @@ function toPlayerTrack(track: Track, url: string) {
   };
 }
 
-function persist(state: QueueState): void {
+/**
+ * Сохранение очереди — отложенное.
+ *
+ * persist() зовётся из восьми действий, и каждое сериализовало всю очередь
+ * целиком. При перелистывании очереди из сотни треков это JSON.stringify
+ * сотни объектов на каждое нажатие «дальше», синхронно, в потоке
+ * интерфейса — ровно то, из-за чего дёргался скролл.
+ *
+ * Приём тот же, что уже работает в журнале прослушиваний
+ * (src/local/plays.ts): в память сразу, на диск — по таймеру.
+ * Записывается всегда свежее состояние, а не то, что было в момент вызова.
+ */
+const PERSIST_DELAY_MS = 1500;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+function writeQueue(): void {
+  const state = useQueue.getState();
   writeJSON(PERSIST_KEY, {
     queue: state.queue,
     index: state.index,
@@ -370,6 +387,29 @@ function persist(state: QueueState): void {
     shuffle: state.shuffle,
   } satisfies PersistedQueue);
 }
+
+function persist(): void {
+  if (persistTimer) return;
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    writeQueue();
+  }, PERSIST_DELAY_MS);
+}
+
+/** Записать немедленно. Нужно там, где приложение может не дожить до таймера. */
+export function flushQueue(): void {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  writeQueue();
+}
+
+// Сворачивание — последний момент, когда можно успеть записать: дальше
+// систему никто не обязывает оставлять процесс живым.
+AppState.addEventListener('change', (next) => {
+  if (next !== 'active') flushQueue();
+});
 
 /**
  * Переключиться на трек, уже заряженный в движок. Возвращает false, если его
