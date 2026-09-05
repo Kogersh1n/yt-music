@@ -1,4 +1,5 @@
 import { getStream, getYouTubeStream } from '../api/songs';
+import { extractStreamUrl } from '../api/youtube';
 import { demoStreamUrl, isDemoId } from '../api/demo';
 import type { Track } from '../api/types';
 
@@ -18,15 +19,14 @@ const ASSUMED_TTL_MS = 60 * 60 * 1000;
 
 interface CachedUrl {
   url: string;
-  fetchedAt: number;
-  /** У демо и YouTube-потоков своя логика жизни, presigned-срока нет. */
-  ttlMs: number;
+  /** Момент, после которого ссылку нельзя использовать. */
+  expiresAt: number;
 }
 
 const cache = new Map<string, CachedUrl>();
 
 function isFresh(entry: CachedUrl): boolean {
-  return Date.now() - entry.fetchedAt < entry.ttlMs - SAFETY_MARGIN_MS;
+  return Date.now() < entry.expiresAt - SAFETY_MARGIN_MS;
 }
 
 /**
@@ -37,24 +37,49 @@ export async function resolveStreamUrl(track: Track, force = false): Promise<str
   const cached = cache.get(track.id);
   if (!force && cached && isFresh(cached)) return cached.url;
 
-  const url = await fetchStreamUrl(track);
-  cache.set(track.id, { url, fetchedAt: Date.now(), ttlMs: ASSUMED_TTL_MS });
-  return url;
+  const resolved = await fetchStreamUrl(track);
+  cache.set(track.id, resolved);
+  return resolved.url;
 }
 
-async function fetchStreamUrl(track: Track): Promise<string> {
-  if (isDemoId(track.id)) return demoStreamUrl(track.id);
+async function fetchStreamUrl(track: Track): Promise<CachedUrl> {
+  if (isDemoId(track.id)) {
+    return { url: demoStreamUrl(track.id), expiresAt: Date.now() + ASSUMED_TTL_MS };
+  }
 
   if (track.source === 'youtube' && track.youtubeId) {
-    const response = await getYouTubeStream(track.youtubeId);
-    // Бэкенд возвращает то, что отдал yt-dlp; ключ отличается между ветками кода.
-    const url = response.stream_url ?? response.url;
-    if (!url) throw new Error('Бэкенд не вернул ссылку на поток YouTube');
-    return url;
+    return fetchYouTubeUrl(track.youtubeId);
   }
 
   const response = await getStream(track.id);
-  return response.stream_url;
+  return { url: response.stream_url, expiresAt: Date.now() + ASSUMED_TTL_MS };
+}
+
+/**
+ * Ссылка на поток YouTube: сначала пробуем достать её сами, потом бэкенд.
+ *
+ * Порядок именно такой, потому что телефон сидит на обычном домашнем или
+ * мобильном адресе, а сервер — на адресе дата-центра, который YouTube
+ * отклоняет примерно в трёх случаях из четырёх. То есть телефон здесь
+ * не запасной путь, а основной.
+ *
+ * Бэкенд остаётся откатом на случай, когда извлечение не удалось: смена
+ * протокола, обрыв связи с youtube.com при живом соединении с нашим API.
+ * Терять воспроизведение целиком из-за этого не хочется.
+ */
+async function fetchYouTubeUrl(videoId: string): Promise<CachedUrl> {
+  try {
+    const stream = await extractStreamUrl(videoId);
+    return { url: stream.url, expiresAt: stream.expiresAt };
+  } catch (error) {
+    if (__DEV__) console.warn('Извлечение на устройстве не удалось:', error);
+  }
+
+  const response = await getYouTubeStream(videoId);
+  // Бэкенд возвращает то, что отдал yt-dlp; ключ отличается между ветками кода.
+  const url = response.stream_url ?? response.url;
+  if (!url) throw new Error('Не удалось получить ссылку на поток YouTube');
+  return { url, expiresAt: Date.now() + ASSUMED_TTL_MS };
 }
 
 /** Сбросить кэш конкретного трека — например, после ошибки воспроизведения. */

@@ -48,9 +48,13 @@ services:
   #
   # Работает в контейнере, а не на хосте: `warp-cli` на хосте меняет
   # маршрутизацию и может оборвать SSH. Здесь он изолирован.
+  # Выключен 2026-09-05: перестал отвечать, а прямые запросы снова проходят.
+  # Оставлен под профилем — если блок вернётся, поднимается командой
+  # `docker compose --profile proxy up -d warp` и адрес вписывается в YTDLP_PROXY.
   warp:
     image: caomingjun/warp:latest
     container_name: ytmusic_warp
+    profiles: ["proxy"]
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -98,8 +102,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      warp:
-        condition: service_healthy
 
   worker:
     build:
@@ -131,8 +133,6 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      warp:
         condition: service_healthy
     deploy:
       resources:
