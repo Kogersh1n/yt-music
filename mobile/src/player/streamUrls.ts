@@ -1,6 +1,7 @@
 import { getStream, getYouTubeStream } from '../api/songs';
 import { extractStreamUrl } from '../api/youtube';
 import { demoStreamUrl, isDemoId } from '../api/demo';
+import { cachedUri } from '../local/audioCache';
 import type { Track } from '../api/types';
 
 /**
@@ -65,6 +66,14 @@ function evictIfNeeded(): void {
  * иначе перезапрашивается.
  */
 export async function resolveStreamUrl(track: Track, force = false): Promise<string> {
+  // Скачанный файл — раньше всего остального, даже при force.
+  //
+  // Он не протухает и не требует сети, поэтому обновлять тут нечего:
+  // force означает «ссылка не сработала», а к локальному файлу это
+  // отношения не имеет.
+  const offline = cachedUri(track);
+  if (offline) return offline;
+
   const cached = cache.get(track.id);
   if (!force && cached && isFresh(cached)) return cached.url;
 

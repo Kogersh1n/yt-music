@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { audioCacheStats, clearAudioCache } from '../src/local/audioCache';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -201,6 +202,9 @@ export default function SettingsScreen() {
         </View>
       ) : null}
 
+      <Text style={styles.sectionTitle}>Офлайн-кэш</Text>
+      <OfflineCache />
+
       <Text style={styles.sectionTitle}>Читаемость текущей темы</Text>
       <ContrastReport />
 
@@ -386,6 +390,37 @@ function ContrastReport() {
           </Text>
         </View>
       ))}
+    </View>
+  );
+}
+
+/**
+ * Скачанные треки. Заполняется сам, когда трек слушают дольше десяти секунд;
+ * здесь только видно, сколько занято, и можно освободить место.
+ */
+function OfflineCache() {
+  const styles = useThemedStyles(makeStyles);
+  const [stats, setStats] = useState(() => audioCacheStats());
+
+  const megabytes = (stats.bytes / (1024 * 1024)).toFixed(1);
+
+  return (
+    <View style={styles.buttons}>
+      <Text style={styles.hint}>
+        {stats.count === 0
+          ? 'Пока пусто. Треки попадают сюда сами — последние пять из тех, что слушали.'
+          : `${stats.count} из 5 треков, ${megabytes} МБ. Играют без сети и начинаются мгновенно.`}
+      </Text>
+      {stats.count > 0 ? (
+        <ActionButton
+          icon="delete-outline"
+          label="Очистить кэш"
+          onPress={() => {
+            clearAudioCache();
+            setStats(audioCacheStats());
+          }}
+        />
+      ) : null}
     </View>
   );
 }

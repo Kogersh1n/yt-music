@@ -6,6 +6,7 @@ import { readJSON, writeJSON } from '../local/storage';
 import { pushRecent } from '../local/recents';
 import { recordPlay } from '../local/stats';
 import { beginPlay } from '../local/plays';
+import { rememberTrack } from '../local/audioCache';
 import { resolveStreamUrl, invalidateStreamUrl } from './streamUrls';
 
 export type RepeatMode = 'off' | 'all' | 'one';
@@ -293,6 +294,15 @@ async function loadCurrent(
       pushRecent(track);
       recordPlay(track.id);
       beginPlay(track);
+
+      // Кладём трек в офлайн-кэш. Фоном и без ожидания: скачивание идёт
+      // параллельно воспроизведению и начинается не сразу — проверка
+      // stillWanted отсекает треки, мимо которых просто пролистнули.
+      const wantedId = track.id;
+      void rememberTrack(track, url, () => {
+        const now = useQueue.getState();
+        return now.queue[now.index]?.id === wantedId;
+      });
     }
     set({ isLoading: false });
     persist();
