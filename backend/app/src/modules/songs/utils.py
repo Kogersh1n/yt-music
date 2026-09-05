@@ -10,16 +10,32 @@ from src.core.exceptions import BadRequestError, ExternalServiceError
 
 
 
-def _access_opts() -> dict:
-    """Параметры доступа к YouTube: cookies и прокси, если заданы.
+# Клиенты плеера, которыми представляемся ютубу, в порядке предпочтения.
+#
+# Это решает главную проблему проекта. Дефолтные клиенты (web, android, ios,
+# tv) переведены на SABR: вместо прямой ссылки они отдают только
+# server_abr_streaming_url, скачать по которому нельзя — yt-dlp этот протокол
+# пока не умеет. visionos на SABR ещё не перевели, и он продолжает отдавать
+# обычные progressive-ссылки.
+#
+# Проверено 2026-09-05: visionos — единственный из тринадцати клиентов,
+# отдающий рабочую ссылку. Список именно списком, чтобы при переводе visionos
+# на SABR можно было дописать следующий, не трогая остальной код.
+YTDLP_PLAYER_CLIENTS = ["visionos"]
 
-    Оба необязательны и подмешиваются в любой вызов yt-dlp. Cookies снимают
-    проверку «подтвердите, что вы не робот», прокси меняет адрес, с которого
-    уходит запрос. Файл cookies проверяется на существование: подсунуть
-    yt-dlp несуществующий путь — значит получить падение вместо работы
-    без cookies.
+
+def _access_opts() -> dict:
+    """Общие параметры доступа к YouTube: клиент плеера, cookies и прокси.
+
+    Клиент задаётся всегда — от него зависит, придёт прямая ссылка или
+    SABR-заглушка. Cookies и прокси необязательны: первые снимают проверку
+    «подтвердите, что вы не робот», второй меняет адрес, с которого уходит
+    запрос. Файл cookies проверяется на существование — подсунуть yt-dlp
+    несуществующий путь значит получить падение вместо работы без cookies.
     """
-    opts: dict = {}
+    opts: dict = {
+        "extractor_args": {"youtube": {"player_client": YTDLP_PLAYER_CLIENTS}},
+    }
 
     cookies = settings.YTDLP_COOKIES_FILE
     if cookies and os.path.isfile(cookies):
@@ -199,8 +215,10 @@ async def search_youtube(query: str, max_results=10) -> list[dict]:
 async def get_youtube_stream_url(video_id: str) -> str:
     url = f'https://www.youtube.com/watch?v={video_id}'
 
+    # Только progressive-форматы: HLS-варианты (233/234) приходят без размера
+    # и длительности, из-за чего плеер не может показать полосу перемотки.
     opts = {
-        'format': 'bestaudio/best',
+        'format': 'bestaudio[protocol^=http]/bestaudio',
         'skip_download': True,
         'noplaylist': True,
         'quiet': True,

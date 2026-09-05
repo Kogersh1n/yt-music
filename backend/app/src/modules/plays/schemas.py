@@ -21,7 +21,7 @@ class PlayEventCreate(BaseModel):
         return v
 
     @field_validator("title", mode="before")
-    @classmethod"
+    @classmethod
     def truncate_title(cls, v: str) -> str:
         if isinstance(v, str):
             return v[:200]
