@@ -9,7 +9,6 @@ import { CarouselSkeleton, ErrorState, EmptyState } from '../../src/ui/component
 import { useTheme, useThemedStyles, type Theme } from '../../src/ui/theme';
 import { useLibrary } from '../../src/features/useLibrary';
 import { useRecents } from '../../src/local/recents';
-import { useLikedCatalog, useRecommendations } from '../../src/features/useDiscover';
 import { usePlayback } from '../../src/player/usePlayback';
 import { useCurrentTrack } from '../../src/player/queueStore';
 import { prefetchStreamUrl } from '../../src/player/streamUrls';
@@ -27,25 +26,14 @@ export default function HomeScreen() {
   const { tracks, isDemo, isLoading, error, refetch, isRefetching } = useLibrary();
   const recents = useRecents();
 
-  // Обе секции необязательные: без авторизации запрос не уходит, при
-  // ошибке раздел просто не рисуется. Медиатека от этого не страдает.
-  const { data: liked = [] } = useLikedCatalog();
-  const { data: recommended = [], isPending: pickingRecommendations } = useRecommendations();
-
-  // Прогрев ссылок на самые вероятные первые нажатия.
+  // Прогрев ссылки на самое вероятное первое нажатие.
   //
-  // Ссылка на трек с ютуба извлекается на сервере около полутора секунд,
-  // и первое нажатие ждёт их целиком: очередь ещё не начата, упреждающая
-  // загрузка не сработала. После прогрева запуск укладывается в треть
-  // секунды — измерено на сервере.
-  //
-  // Греем по одному треку из раздела, а не весь список: цель — убрать
-  // задержку у вероятного нажатия, а не выгрести половину выдачи ютуба.
+  // Извлечение ссылки на трек с ютуба занимает около секунды, и первое
+  // нажатие ждёт её целиком: очередь ещё не начата, упреждающая загрузка
+  // не сработала. После прогрева запуск ощущается мгновенным.
   useEffect(() => {
-    for (const track of [recents[0], recommended[0], liked[0]]) {
-      if (track) prefetchStreamUrl(track);
-    }
-  }, [recents, recommended, liked]);
+    if (recents[0]) prefetchStreamUrl(recents[0]);
+  }, [recents]);
   const { play } = usePlayback();
   const current = useCurrentTrack();
 
@@ -111,7 +99,7 @@ export default function HomeScreen() {
           <CarouselSkeleton />
           <CarouselSkeleton />
         </View>
-      ) : tracks.length === 0 && liked.length === 0 && recommended.length === 0 ? (
+      ) : tracks.length === 0 ? (
         <EmptyState
           title="Пока пусто"
           hint="Найдите трек на вкладке «Обзор» — его можно слушать сразу, не добавляя в медиатеку."
@@ -122,25 +110,6 @@ export default function HomeScreen() {
             <Carousel title="Слушать снова" tracks={recents} onPressTrack={handlePlay} />
           ) : null}
 
-          {/* Подбор по прослушанному. Пока сервер считает — скелетон:
-              запрос идёт несколько секунд, и пустое место на его месте
-              выглядело бы как поломка. */}
-          {pickingRecommendations ? (
-            <CarouselSkeleton />
-          ) : recommended.length > 0 ? (
-            <Carousel
-              title="Может понравиться"
-              tracks={recommended}
-              onPressTrack={handlePlay}
-            />
-          ) : null}
-
-          {liked.length > 0 ? (
-            <Carousel title="Из твоих лайков" tracks={liked} onPressTrack={handlePlay} />
-          ) : null}
-
-          {/* Медиатека может быть пустой, а лайки и подбор — нет:
-              заголовок без треков выглядел бы как поломка. */}
           {newest.length > 0 ? (
             <Carousel title="Новое" tracks={newest} onPressTrack={handlePlay} />
           ) : null}

@@ -25,7 +25,6 @@ class Settings(BaseSettings):
 
     # Файл авторизации YouTube Music (ytmusicapi browser).
     # Без него доступен только открытый поиск, личная библиотека — нет.
-    YTMUSIC_AUTH_FILE: str | None = None
 
     # --- Доступ к YouTube ---
     # Файл cookies в формате Netscape. Нужен, когда YouTube требует

@@ -9,8 +9,6 @@ from src.modules.songs.router import songs_router
 from src.modules.users.router import users_router
 from src.modules.auth.router import router as auth_router
 from src.modules.playlists.router import playlists_router
-from src.modules.sync.router import sync_router
-from src.modules.plays.router import plays_router
 
 from src.core.exceptions import AppError
 from src.integrations.s3 import close_s3_clients
@@ -56,8 +54,6 @@ app.include_router(songs_router)
 app.include_router(users_router)
 app.include_router(auth_router)
 app.include_router(playlists_router)
-app.include_router(sync_router)
-app.include_router(plays_router)
 
 @app.get("/")
 async def read_root():

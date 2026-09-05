@@ -4,14 +4,12 @@ def load_models():
     import src.modules.users.models as user_models
     import src.modules.playlists.models as playlist_models
     import src.modules.auth.models as auth_models
-    import src.modules.plays.models as play_models
 
     __all_models = (
         song_models,
         user_models,
         playlist_models,
         auth_models,
-        play_models
 
     )
 
