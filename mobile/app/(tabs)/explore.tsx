@@ -12,17 +12,14 @@ import { FlashList } from '@shopify/flash-list';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Chip } from '../../src/ui/components/Chip';
 import { TrackRow } from '../../src/ui/components/TrackRow';
 import { EmptyState, ErrorState, TrackListSkeleton } from '../../src/ui/components/states';
 import { useTheme, useThemedStyles, type Theme } from '../../src/ui/theme';
-import { useLibrary, useLocalSearch, useYouTubeSearch } from '../../src/features/useLibrary';
+import { useLibrary, useYouTubeSearch } from '../../src/features/useLibrary';
 import { useDebounced } from '../../src/features/useDebounced';
 import { usePlayback } from '../../src/player/usePlayback';
 import { importTrack, type ImportProgress } from '../../src/features/importTrack';
 import type { Track } from '../../src/api/types';
-
-type Scope = 'library' | 'youtube';
 
 /**
  * Что показывать на каждой стадии. Трек качается на телефон и оттуда же
@@ -36,9 +33,14 @@ const STAGE_LABEL: Record<ImportProgress['stage'], string> = {
 };
 
 /**
- * Поиск. Два источника: своя медиатека (по загруженному кэшу) и YouTube
- * (через бэкенд). Ввод дебаунсится, предыдущий запрос отменяется — иначе при
- * быстром наборе результаты «прыгают», как это происходит в вебе.
+ * Поиск по YouTube.
+ *
+ * Только по ютубу: поиск по своей медиатеке живёт на вкладке «Медиатека»,
+ * рядом с самой медиатекой, и второй такой же здесь был лишним выбором
+ * на каждом открытии экрана.
+ *
+ * Ввод дебаунсится, предыдущий запрос отменяется — иначе при быстром наборе
+ * результаты «прыгают», как это происходит в вебе.
  */
 /** Вынесен из компонента: иначе новая функция на каждый рендер. */
 const keyExtractor = (item: Track) => item.id;
@@ -48,17 +50,14 @@ export default function ExploreScreen() {
   const theme = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [query, setQuery] = useState('');
-  const [scope, setScope] = useState<Scope>('library');
   const debouncedQuery = useDebounced(query, 400);
 
   const { tracks: library, isDemo } = useLibrary();
   const { play } = usePlayback();
   const queryClient = useQueryClient();
 
-  const localResults = useLocalSearch(debouncedQuery, library);
-  const youtube = useYouTubeSearch(debouncedQuery, scope === 'youtube' && !isDemo);
-
-  const results = scope === 'library' ? localResults : youtube.tracks;
+  const youtube = useYouTubeSearch(debouncedQuery, !isDemo);
+  const results = youtube.tracks;
 
   // Стадия импорта — чтобы полоска говорила, что именно происходит:
   // операция идёт секунды, и одинаковый текст всё это время выглядит
@@ -83,9 +82,25 @@ export default function ExploreScreen() {
 
   const handlePress = useCallback((index: number) => play(resultsRef.current, index), [play]);
 
+  // Что уже есть в медиатеке — по идентификаторам ютуба.
+  //
+  // Нужно, чтобы не начинать импорт того, что и так на месте: без проверки
+  // телефон качал бы несколько мегабайт, заливал их в хранилище и только
+  // потом получал отказ от базы.
+  const importedIds = useMemo(
+    () => new Set(library.map((item) => item.youtubeId).filter(Boolean) as string[]),
+    [library],
+  );
+
   const handleMenu = useCallback(
     (track: Track) => {
       if (track.source !== 'youtube' || !track.youtubeId) return;
+
+      if (importedIds.has(track.youtubeId)) {
+        Alert.alert(track.title, 'Этот трек уже в медиатеке.');
+        return;
+      }
+
       Alert.alert(track.title, 'Добавить трек в медиатеку?', [
         { text: 'Отмена', style: 'cancel' },
         {
@@ -94,7 +109,7 @@ export default function ExploreScreen() {
         },
       ]);
     },
-    [importSong],
+    [importSong, importedIds],
   );
 
   const renderItem = useCallback(
@@ -135,14 +150,6 @@ export default function ExploreScreen() {
         ) : null}
       </View>
 
-      <View style={styles.chips}>
-        <Chip
-          label="Моя медиатека"
-          active={scope === 'library'}
-          onPress={() => setScope('library')}
-        />
-        <Chip label="YouTube" active={scope === 'youtube'} onPress={() => setScope('youtube')} />
-      </View>
 
       {importSong.isPending ? (
         <View style={styles.importBar}>
@@ -153,11 +160,10 @@ export default function ExploreScreen() {
 
       <Body
         query={debouncedQuery}
-        scope={scope}
         isDemo={isDemo}
         results={results}
-        isLoading={scope === 'youtube' && youtube.isLoading}
-        error={scope === 'youtube' ? youtube.error : null}
+        isLoading={youtube.isLoading}
+        error={youtube.error}
         renderItem={renderItem}
         contentContainerStyle={listContent}
       />
@@ -167,7 +173,6 @@ export default function ExploreScreen() {
 
 function Body({
   query,
-  scope,
   isDemo,
   results,
   isLoading,
@@ -176,7 +181,6 @@ function Body({
   contentContainerStyle,
 }: {
   query: string;
-  scope: Scope;
   isDemo: boolean;
   results: readonly Track[];
   isLoading: boolean;
@@ -190,16 +194,12 @@ function Body({
       <EmptyState
         icon="⌕"
         title="Что послушаем?"
-        hint={
-          scope === 'library'
-            ? 'Поиск идёт по загруженной медиатеке.'
-            : 'Найдите трек на YouTube и добавьте его к себе.'
-        }
+        hint="Найдите трек на YouTube — его можно слушать сразу или добавить к себе." 
       />
     );
   }
 
-  if (scope === 'youtube' && isDemo) {
+  if (isDemo) {
     return (
       <EmptyState
         icon="⚡"
@@ -241,12 +241,6 @@ const makeStyles = (t: Theme) =>
       borderRadius: t.radius.chip,
     },
     input: { flex: 1, color: t.colors.text, fontSize: t.type.body.fontSize + 1, padding: 0 },
-    chips: {
-      flexDirection: 'row',
-      gap: t.spacing.sm,
-      paddingHorizontal: t.layout.screenPadding,
-      paddingVertical: t.spacing.md,
-    },
     importBar: {
       flexDirection: 'row',
       alignItems: 'center',

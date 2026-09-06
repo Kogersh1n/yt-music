@@ -1,6 +1,7 @@
 import { Directory, File, Paths, UploadType } from 'expo-file-system';
 import { extractStreamUrl } from '../api/youtube';
 import { createSong, getAudioUploadUrl, getCoverUploadUrl } from '../api/songs';
+import { ApiError } from '../api/client';
 import type { SongResponse, Track } from '../api/types';
 
 /**
@@ -128,16 +129,26 @@ export async function importTrack(
     }
 
     onProgress?.({ stage: 'save' });
-    return await createSong({
-      // Название из выдачи поиска вернее: в ответе плеера оно бывает
-      // с техническими хвостами вроде «(Official Video)».
-      title: track.title || stream.title,
-      author: track.author || stream.author,
-      duration: track.duration || stream.durationSec,
-      audio_file_key: audioSlot.file_key,
-      cover_file_key: coverKey,
-      youtube_id: videoId,
-    });
+    try {
+      return await createSong({
+        // Название из выдачи поиска вернее: в ответе плеера оно бывает
+        // с техническими хвостами вроде «(Official Video)».
+        title: track.title || stream.title,
+        author: track.author || stream.author,
+        duration: track.duration || stream.durationSec,
+        audio_file_key: audioSlot.file_key,
+        cover_file_key: coverKey,
+        youtube_id: videoId,
+      });
+    } catch (error) {
+      // youtube_id в базе уникален, а бэкенд вставляет без проверки —
+      // на повторе прилетает голый 500. Пользователю это ни о чём
+      // не говорит, поэтому переводим на человеческий.
+      if (error instanceof ApiError && error.status >= 500) {
+        throw new Error('Похоже, этот трек уже есть в медиатеке');
+      }
+      throw error;
+    }
   } finally {
     remove(audio);
     remove(cover);

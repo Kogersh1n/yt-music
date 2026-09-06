@@ -9,6 +9,7 @@ import { EmptyState, ErrorState, TrackListSkeleton } from '../../src/ui/componen
 import { useTheme, useThemedStyles, type Theme } from '../../src/ui/theme';
 import { useLibrary, useLibraryFilter } from '../../src/features/useLibrary';
 import { useLikedIds, toggleLike } from '../../src/local/likes';
+import { useCachedKeys } from '../../src/local/audioCache';
 import { trackKey } from '../../src/api/types';
 import { usePlayback } from '../../src/player/usePlayback';
 import type { Track } from '../../src/api/types';
@@ -41,6 +42,7 @@ export default function LibraryScreen() {
   } = useLibrary();
 
   const likedIds = useLikedIds();
+  const cachedKeys = useCachedKeys();
   const { play } = usePlayback();
 
   /**
@@ -55,9 +57,15 @@ export default function LibraryScreen() {
       const set = new Set(likedIds);
       return tracks.filter((track) => set.has(track.id));
     }
-    if (filter === 'downloaded') return [];
+    if (filter === 'downloaded') {
+      // Раньше здесь всегда было пусто: показывать было нечего. Теперь есть —
+      // офлайн-кэш держит последние прослушанные, и это ровно те треки,
+      // которые играют без сети.
+      const set = new Set(cachedKeys);
+      return tracks.filter((track) => set.has(trackKey(track)));
+    }
     return tracks;
-  }, [filter, tracks, likedIds]);
+  }, [filter, tracks, likedIds, cachedKeys]);
 
   // Фильтрация локальная и мгновенная — сеть не трогаем, дебаунс не нужен.
   const visible = useLibraryFilter(query, byFilter);
@@ -178,7 +186,7 @@ function EmptyBody({ filter }: { filter: Filter }) {
       <EmptyState
         icon="↓"
         title="Загрузок пока нет"
-        hint="Офлайн-режим ещё не подключён — треки играют по сети."
+        hint="Треки попадают сюда сами: последние пять из тех, что слушали дольше десяти секунд."
       />
     );
   }

@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from 'react';
 import { Directory, File, Paths } from 'expo-file-system';
 import { readJSON, writeJSON } from './storage';
 import { trackKey, type Track } from '../api/types';
@@ -42,6 +43,21 @@ interface CacheEntry {
 
 let index: CacheEntry[] = readJSON<CacheEntry[]>(INDEX_KEY, []);
 
+/**
+ * Подписка на состав кэша: экран медиатеки показывает по нему фильтр
+ * «Скачанное», и список должен обновляться сам, когда трек докачался.
+ *
+ * Снимок обязан быть стабильным по ссылке, иначе useSyncExternalStore
+ * зациклится на перерисовке.
+ */
+const listeners = new Set<() => void>();
+let snapshot: readonly string[] = Object.freeze(index.map((entry) => entry.key));
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 /** Треки, которые качаются прямо сейчас — чтобы не начать второй раз. */
 const inFlight = new Set<string>();
 
@@ -53,6 +69,8 @@ function dir(): Directory {
 
 function save(): void {
   writeJSON(INDEX_KEY, index);
+  snapshot = Object.freeze(index.map((entry) => entry.key));
+  listeners.forEach((listener) => listener());
 }
 
 /**
@@ -202,4 +220,9 @@ export function clearAudioCache(): void {
   }
   index = [];
   save();
+}
+
+/** Ключи скачанных треков. Для фильтра «Скачанное» в медиатеке. */
+export function useCachedKeys(): readonly string[] {
+  return useSyncExternalStore(subscribe, () => snapshot);
 }
