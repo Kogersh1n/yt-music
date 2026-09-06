@@ -4,6 +4,7 @@ from fastapi import APIRouter,status,Query
 
 from src.modules.songs.schemas import *
 from src.modules.songs.service import song_service 
+from src.modules.songs.utils import SEARCH_DEFAULT_LIMIT, SEARCH_MAX_LIMIT
 from src.core.deps import SessionDep, UserDep
 
 
@@ -86,8 +87,11 @@ async def import_from_youtube(session: SessionDep, import_data: SongYoutubeImpor
     '/youtube/search',
     response_model=YouTubeSearchResponse,
 )
-async def youtube_search(q: str = Query(min_length=1, max_length=200)):
-    return await song_service.search_youtube_songs(query=q)
+async def youtube_search(
+    q: str = Query(min_length=1, max_length=200),
+    limit: int = Query(SEARCH_DEFAULT_LIMIT, ge=1, le=SEARCH_MAX_LIMIT),
+):
+    return await song_service.search_youtube_songs(query=q, limit=limit)
 
 
 @songs_router.get('/youtube/stream/{video_id}', response_model=SongStreamResponse)

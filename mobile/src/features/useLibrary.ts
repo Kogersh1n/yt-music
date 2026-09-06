@@ -102,12 +102,18 @@ export function useLibraryFilter(query: string, tracks: readonly Track[]): Track
  * Поиск по YouTube. Запрос уходит только для непустой строки; React Query
  * сам отменяет предыдущий через signal, поэтому гонок при быстром вводе нет.
  */
+/**
+ * Сколько результатов просить у ютуба. Десяти не хватало — выдача
+ * обрывалась там, где искомое ещё не встретилось. Потолок на бэкенде — сто.
+ */
+const YOUTUBE_SEARCH_LIMIT = 30;
+
 export function useYouTubeSearch(query: string, enabled: boolean) {
   const trimmed = query.trim();
 
   const result = useQuery({
     queryKey: ['youtube-search', trimmed],
-    queryFn: ({ signal }) => searchYouTube(trimmed, signal),
+    queryFn: ({ signal }) => searchYouTube(trimmed, YOUTUBE_SEARCH_LIMIT, signal),
     enabled: enabled && trimmed.length > 0,
     // Результаты поиска живут дольше экрана — возврат к тому же запросу
     // не бьёт по yt-dlp повторно.

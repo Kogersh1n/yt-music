@@ -33,6 +33,8 @@ export interface ExtractedStream {
   mimeType: string;
   bitrate: number;
   durationSec: number;
+  title: string;
+  author: string;
 }
 
 /**
@@ -176,5 +178,7 @@ export async function extractStreamUrl(videoId: string): Promise<ExtractedStream
     mimeType: format.mimeType ?? 'audio/mp4',
     bitrate: format.bitrate ?? 0,
     durationSec: Number(data?.videoDetails?.lengthSeconds ?? 0),
+    title: String(data?.videoDetails?.title ?? ''),
+    author: String(data?.videoDetails?.author ?? ''),
   };
 }

@@ -19,10 +19,21 @@ import { useTheme, useThemedStyles, type Theme } from '../../src/ui/theme';
 import { useLibrary, useLocalSearch, useYouTubeSearch } from '../../src/features/useLibrary';
 import { useDebounced } from '../../src/features/useDebounced';
 import { usePlayback } from '../../src/player/usePlayback';
-import { importFromYouTube } from '../../src/api/songs';
+import { importTrack, type ImportProgress } from '../../src/features/importTrack';
 import type { Track } from '../../src/api/types';
 
 type Scope = 'library' | 'youtube';
+
+/**
+ * Что показывать на каждой стадии. Трек качается на телефон и оттуда же
+ * уходит в хранилище, поэтому стадий четыре, а не одна.
+ */
+const STAGE_LABEL: Record<ImportProgress['stage'], string> = {
+  extract: 'Ищем аудиодорожку…',
+  download: 'Качаем трек на телефон…',
+  upload: 'Загружаем в медиатеку…',
+  save: 'Сохраняем…',
+};
 
 /**
  * Поиск. Два источника: своя медиатека (по загруженному кэшу) и YouTube
@@ -49,14 +60,20 @@ export default function ExploreScreen() {
 
   const results = scope === 'library' ? localResults : youtube.tracks;
 
+  // Стадия импорта — чтобы полоска говорила, что именно происходит:
+  // операция идёт секунды, и одинаковый текст всё это время выглядит
+  // как зависание.
+  const [stage, setStage] = useState<ImportProgress['stage'] | null>(null);
+
   const importSong = useMutation({
-    mutationFn: (url: string) => importFromYouTube(url),
+    mutationFn: (track: Track) => importTrack(track, (progress) => setStage(progress.stage)),
     onSuccess: () => {
       // Медиатека изменилась — сбрасываем её кэш, чтобы новый трек появился.
       void queryClient.invalidateQueries({ queryKey: ['songs'] });
       Alert.alert('Готово', 'Трек добавлен в медиатеку');
     },
     onError: (error: Error) => Alert.alert('Не удалось добавить', error.message),
+    onSettled: () => setStage(null),
   });
 
   // Список результатов — в ref: иначе новый handlePress на каждую выдачу
@@ -73,8 +90,7 @@ export default function ExploreScreen() {
         { text: 'Отмена', style: 'cancel' },
         {
           text: 'Добавить',
-          onPress: () =>
-            importSong.mutate(`https://www.youtube.com/watch?v=${track.youtubeId}`),
+          onPress: () => importSong.mutate(track),
         },
       ]);
     },
@@ -131,9 +147,7 @@ export default function ExploreScreen() {
       {importSong.isPending ? (
         <View style={styles.importBar}>
           <ActivityIndicator color={theme.colors.text} size="small" />
-          <Text style={styles.importText}>
-            Скачиваем и загружаем трек — это может занять до минуты
-          </Text>
+          <Text style={styles.importText}>{STAGE_LABEL[stage ?? 'extract']}</Text>
         </View>
       ) : null}
 

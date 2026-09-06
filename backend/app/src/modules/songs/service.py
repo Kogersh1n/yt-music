@@ -267,8 +267,8 @@ class SongService:
         songs = await self.repo.search(session, query_str=query)
         return await self._enrich_many(songs)
 
-    async def search_youtube_songs(self, query: str) -> dict:
-        results = await search_youtube(query=query)
+    async def search_youtube_songs(self, query: str, limit: int) -> dict:
+        results = await search_youtube(query=query, max_results=limit)
         return {"results": results, "query": query}
 
     @staticmethod

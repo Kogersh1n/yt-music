@@ -5,6 +5,7 @@ import type {
   SongStreamResponse,
   SongCoverResponse,
   YouTubeSearchResponse,
+  UploadCredentialsResponse,
 } from './types';
 
 /** Лента медиатеки. Курсорная пагинация: next_cursor из предыдущего ответа. */
@@ -43,10 +44,14 @@ export function getCover(songId: string, signal?: AbortSignal): Promise<SongCove
  */
 export function searchYouTube(
   query: string,
+  limit = 30,
   signal?: AbortSignal,
 ): Promise<YouTubeSearchResponse> {
-  return request<YouTubeSearchResponse>(`/songs/youtube/search?q=${encodeURIComponent(query)}`, {
+  const params = new URLSearchParams({ q: query, limit: String(limit) });
+  return request<YouTubeSearchResponse>(`/songs/youtube/search?${params}`, {
     signal,
+    // Тридцать результатов ютуб отдаёт заметно дольше десяти.
+    timeoutMs: LONG_TIMEOUT_MS,
   });
 }
 
@@ -73,4 +78,48 @@ export function importFromYouTube(url: string, signal?: AbortSignal): Promise<So
 
 export function deleteSong(songId: string, signal?: AbortSignal): Promise<void> {
   return request<void>(`/songs/${songId}`, { method: 'DELETE', signal });
+}
+
+/**
+ * Ссылка для заливки аудио прямо в хранилище.
+ *
+ * Файл идёт мимо бэкенда: presigned-URL выдаёт он, а PUT уходит в R2
+ * напрямую с телефона. Иначе трек пришлось бы гнать через сервер дважды.
+ */
+export function getAudioUploadUrl(
+  filename: string,
+  fileType: string,
+  signal?: AbortSignal,
+): Promise<UploadCredentialsResponse> {
+  const params = new URLSearchParams({ filename, file_type: fileType });
+  return request<UploadCredentialsResponse>(`/songs/upload-url?${params}`, { signal });
+}
+
+/** То же для обложки. */
+export function getCoverUploadUrl(
+  filename: string,
+  fileType: string,
+  signal?: AbortSignal,
+): Promise<UploadCredentialsResponse> {
+  const params = new URLSearchParams({ filename, file_type: fileType });
+  return request<UploadCredentialsResponse>(`/songs/upload-cover-url?${params}`, { signal });
+}
+
+/** Создать запись о песне после того, как файлы уже лежат в хранилище. */
+export function createSong(
+  payload: {
+    title: string;
+    author: string;
+    duration: number;
+    audio_file_key: string;
+    cover_file_key?: string | null;
+    youtube_id?: string | null;
+  },
+  signal?: AbortSignal,
+): Promise<SongResponse> {
+  return request<SongResponse>('/songs/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    signal,
+  });
 }

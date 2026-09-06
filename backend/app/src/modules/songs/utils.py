@@ -179,8 +179,18 @@ async def download_thumbnail(url: str, song_id: str) -> str:
     return file_path
 
 
+# Сколько результатов просить у ютуба.
+#
+# Было десять — этого мало, поиск обрывался на середине выдачи. Совсем без
+# ограничения нельзя: ytsearch требует числа, а не «всё», и каждый результат
+# стоит запроса. Сотня — практический потолок: столько всё равно
+# не пролистывают, а ждать приходится заметно дольше.
+SEARCH_DEFAULT_LIMIT = 30
+SEARCH_MAX_LIMIT = 100
+
+
 # For searching tracks
-async def search_youtube(query: str, max_results=10) -> list[dict]:
+async def search_youtube(query: str, max_results: int = SEARCH_DEFAULT_LIMIT) -> list[dict]:
     # Just request for get metadata without audio
     search_query = f'ytsearch{max_results}:{query}'
 

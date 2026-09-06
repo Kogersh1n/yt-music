@@ -56,6 +56,12 @@ export interface YouTubeSearchResponse {
   query: string;
 }
 
+/** Ответ ручек upload-url и upload-cover-url: куда лить и под каким ключом. */
+export interface UploadCredentialsResponse {
+  upload_url: string;
+  file_key: string;
+}
+
 /**
  * Единая форма трека внутри приложения. Приводим к ней и локальные песни,
  * и результаты YouTube — плееру и спискам всё равно, откуда трек взялся.
