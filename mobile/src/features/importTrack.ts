@@ -123,16 +123,26 @@ export async function importTrack(
     audio = await File.downloadFileAsync(stream.url, new File(workDir(), `${videoId}.${ext}`));
     if (!audio.exists) throw new Error('Не удалось скачать аудио');
 
-    // Обложку берём по стандартному адресу превью: в ответе плеера лежит
-    // тот же кадр, но лишний разбор ради этого не нужен.
-    try {
-      cover = await File.downloadFileAsync(
-        `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-        new File(workDir(), `${videoId}.jpg`),
-      );
-    } catch {
-      // Без обложки трек полноценен — поле необязательное.
-      cover = null;
+    // Обложку берём по стандартному адресу превью.
+    //
+    // hq720 первым: hqdefault приходит как 480x360, то есть 4:3 с вшитыми
+    // чёрными полями, и обрезка по квадрату их не убирает. Но hq720 есть
+    // не у всех роликов — у старых и малого разрешения его может не быть,
+    // поэтому запасной вариант остаётся.
+    for (const name of ['hq720', 'hqdefault']) {
+      try {
+        const file = await File.downloadFileAsync(
+          `https://i.ytimg.com/vi/${videoId}/${name}.jpg`,
+          new File(workDir(), `${videoId}.jpg`),
+        );
+        // Заглушка «нет превью» весит около килобайта — по размеру и отличаем.
+        if (file.exists && (file.size ?? 0) > 2048) {
+          cover = file;
+          break;
+        }
+      } catch {
+        // Пробуем следующий размер; без обложки трек всё равно полноценен.
+      }
     }
 
     onProgress?.({ stage: 'upload' });

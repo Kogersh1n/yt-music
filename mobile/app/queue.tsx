@@ -1,12 +1,13 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Thumb } from '../src/ui/components/Thumb';
-import { useCachedCover } from '../src/features/useMusicMeta';
 import { EmptyState } from '../src/ui/components/states';
+import { MiniPlayer } from '../src/ui/components/MiniPlayer';
+import { NowPlayingMark } from '../src/ui/components/NowPlayingMark';
 import { useTheme, useThemedStyles, type Theme } from '../src/ui/theme';
 import { useQueue } from '../src/player/queueStore';
 import type { Track } from '../src/api/types';
@@ -15,6 +16,11 @@ import type { Track } from '../src/api/types';
  * Очередь воспроизведения. Показывает логическую очередь целиком — она живёт
  * в сторе, а не в движке, поэтому виден весь список, а не только заряженные
  * вперёд треки.
+ *
+ * Разделена на «Сейчас играет» и «Далее». Раньше заголовок экрана обещал
+ * «Далее», а первой строкой шёл текущий трек — то есть подпись врала.
+ * Плюс так у списка появляется структура: видно, где граница между тем,
+ * что уже играет, и тем, что ждёт.
  */
 export default function QueueScreen() {
   const insets = useSafeAreaInsets();
@@ -28,17 +34,45 @@ export default function QueueScreen() {
   const removeFromQueue = useQueue((state) => state.removeFromQueue);
   const moveInQueue = useQueue((state) => state.moveInQueue);
 
+  /**
+   * Список с заголовками секций.
+   *
+   * FlashList принимает плоский массив, поэтому заголовки едут в нём же
+   * отдельным типом элемента — так список остаётся переиспользуемым
+   * и не превращается в ScrollView.
+   */
+  const rows = useMemo<Row[]>(() => {
+    const out: Row[] = [];
+    if (queue[index]) {
+      out.push({ kind: 'header', label: 'Сейчас играет' });
+      out.push({ kind: 'track', track: queue[index], position: index });
+    }
+
+    const upcoming = queue
+      .map((track, position) => ({ track, position }))
+      .filter((item) => item.position !== index);
+
+    if (upcoming.length > 0) {
+      out.push({ kind: 'header', label: 'Далее' });
+      for (const item of upcoming) out.push({ kind: 'track', ...item });
+    }
+    return out;
+  }, [queue, index]);
+
   const renderItem = useCallback(
-    ({ item, index: position }: { item: Track; index: number }) => (
-      <QueueRow
-        track={item}
-        position={position}
-        isActive={position === index}
-        onPlay={() => void jumpTo(position)}
-        onRemove={() => removeFromQueue(position)}
-        onMoveUp={position > 0 ? () => moveInQueue(position, position - 1) : undefined}
-      />
-    ),
+    ({ item }: { item: Row }) => {
+      if (item.kind === 'header') return <SectionHeader label={item.label} />;
+      const position = item.position;
+      return (
+        <QueueRow
+          track={item.track}
+          isActive={position === index}
+          onPlay={() => void jumpTo(position)}
+          onRemove={() => removeFromQueue(position)}
+          onMoveUp={position > 0 ? () => moveInQueue(position, position - 1) : undefined}
+        />
+      );
+    },
     [index, jumpTo, removeFromQueue, moveInQueue],
   );
 
@@ -48,7 +82,9 @@ export default function QueueScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.headerButton}>
           <MaterialIcons name="keyboard-arrow-down" size={28} color={theme.colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Далее</Text>
+        {/* «Очередь», а не «Далее»: секция с таким названием теперь
+            внутри списка, и два одинаковых заголовка подряд путали. */}
+        <Text style={styles.headerTitle}>Очередь</Text>
         <View style={styles.headerButton} />
       </View>
 
@@ -56,16 +92,29 @@ export default function QueueScreen() {
         <EmptyState title="Очередь пуста" hint="Запустите любой трек — он появится здесь." />
       ) : (
         <FlashList
-          data={queue}
+          data={rows}
           renderItem={renderItem}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item, i) =>
+            item.kind === 'header' ? `h:${item.label}` : `${item.track.id}:${i}`
+          }
           contentContainerStyle={styles.list}
-          // Держим играющий трек в поле зрения при открытии экрана.
-          initialScrollIndex={Math.max(index - 1, 0)}
         />
       )}
+
+      {/* Управление не исчезает: очередь — ровно тот экран, где смотришь
+          на одно, а слушаешь другое, и уходить назад ради паузы глупо. */}
+      <MiniPlayer standalone />
     </View>
   );
+}
+
+type Row =
+  | { kind: 'header'; label: string }
+  | { kind: 'track'; track: Track; position: number };
+
+function SectionHeader({ label }: { label: string }) {
+  const styles = useThemedStyles(makeStyles);
+  return <Text style={styles.section}>{label}</Text>;
 }
 
 function QueueRow({
@@ -76,7 +125,6 @@ function QueueRow({
   onMoveUp,
 }: {
   track: Track;
-  position: number;
   isActive: boolean;
   onPlay: () => void;
   onRemove: () => void;
@@ -84,9 +132,6 @@ function QueueRow({
 }) {
   const theme = useTheme();
   const styles = useThemedStyles(makeStyles);
-  // Та же обложка, что в медиатеке, плеере и мини-плеере. Очередь была
-  // последним местом, где оставался кадр клипа.
-  const cover = useCachedCover(track) ?? track.artwork;
 
   return (
     <Pressable
@@ -94,7 +139,11 @@ function QueueRow({
       style={styles.row}
       android_ripple={{ color: 'rgba(128,128,128,0.16)' }}
     >
-      <Thumb uri={cover} seed={track.title} size={40} />
+      <Thumb track={track} size={40} />
+
+      {/* Форма, а не только цвет: красным в теме покрашено и «играет»,
+          и «удалить», а на беглый взгляд цвет вообще теряется. */}
+      {isActive ? <NowPlayingMark /> : null}
 
       <View style={styles.text}>
         <Text numberOfLines={1} style={[styles.title, isActive && styles.activeTitle]}>
@@ -124,6 +173,15 @@ function QueueRow({
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: t.colors.bg },
+    section: {
+      ...t.type.meta,
+      color: t.colors.textFaint,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      paddingHorizontal: t.layout.screenPadding,
+      paddingTop: t.spacing.lg,
+      paddingBottom: t.spacing.xs,
+    },
     header: {
       flexDirection: 'row',
       alignItems: 'center',

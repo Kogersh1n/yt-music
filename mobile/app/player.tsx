@@ -48,6 +48,9 @@ export default function PlayerScreen() {
   // обрезанный клип. У аудиозаписи в YouTube Music лежит настоящая обложка
   // альбома, квадратная и в нужном разрешении. Ищется она один раз на трек
   // и запоминается, так что при возврате на экран запроса уже нет.
+  // Запускает поиск обложки в YouTube Music. Сама картинка рисуется через
+  // Thumb, который читает результат из кэша, — здесь нужен именно запуск
+  // и адрес для расчёта цвета подложки.
   const musicCover = useMusicCover(track);
   const artwork = musicCover ?? track?.artwork ?? null;
 
@@ -112,8 +115,7 @@ export default function PlayerScreen() {
       <View style={styles.art}>
         <Glow color={glowColor} size={artSize} />
         <Thumb
-          uri={artwork}
-          seed={track.title}
+          track={track}
           size={artSize}
           rounded={theme.components.thumb === 'square' ? 0 : theme.radius.card}
         />
@@ -122,7 +124,9 @@ export default function PlayerScreen() {
       <View style={[styles.bottom, { paddingBottom: insets.bottom + theme.spacing.xl }]}>
         <View style={styles.titleRow}>
           <View style={styles.titleText}>
-            <Text numberOfLines={1} style={styles.title}>
+            {/* Две строки, а не одна: названия с ютуба длинные, и обрезание
+                посреди слова у главного элемента экрана выглядит скупо. */}
+            <Text numberOfLines={2} style={styles.title}>
               {track.title}
             </Text>
             <View style={styles.authorRow}>

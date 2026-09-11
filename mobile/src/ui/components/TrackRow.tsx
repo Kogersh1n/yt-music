@@ -3,11 +3,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Thumb } from './Thumb';
 import { SwipeableRow } from './SwipeableRow';
+import { NowPlayingMark } from './NowPlayingMark';
 import { useTheme, useThemedStyles, formatDuration, type Theme } from '../theme';
 import { useIsLiked, toggleLike } from '../../local/likes';
 import { trackKey } from '../../api/types';
 import { useQueue } from '../../player/queueStore';
-import { useCachedCover } from '../../features/useMusicMeta';
 import { tapMedium, notifySuccess } from '../haptics';
 import type { Track } from '../../api/types';
 
@@ -50,9 +50,6 @@ export const TrackRow = memo(function TrackRow({
   const addToQueue = useQueue((state) => state.addToQueue);
   const isActive = useQueue((state) => state.queue[state.index]?.id === track.id);
 
-  // Квадратная обложка из YouTube Music, если её уже нашли, когда трек играл.
-  // Сетевого запроса здесь нет намеренно: строк на экране десятки.
-  const cover = useCachedCover(track) ?? track.artwork;
 
   const handlePress = useCallback(() => onPress(index), [onPress, index]);
   const handleMenu = useCallback(() => onMenu?.(track), [onMenu, track]);
@@ -73,7 +70,11 @@ export const TrackRow = memo(function TrackRow({
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
       android_ripple={{ color: 'rgba(128,128,128,0.16)' }}
     >
-      <Thumb uri={cover} seed={track.title} size={theme.layout.rowThumb} />
+      <Thumb track={track} size={theme.layout.rowThumb} />
+
+      {/* Форма, а не только цвет: красный в теме означает и «играет»,
+          и «удалить», а при беглом взгляде цвет теряется вовсе. */}
+      {isActive ? <NowPlayingMark /> : null}
 
       <View style={styles.text}>
         <Text numberOfLines={1} style={[styles.title, isActive && styles.activeTitle]}>

@@ -3,6 +3,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Gradient } from './Gradient';
 import { useTheme } from '../theme';
+import { useCachedCover } from '../../features/useMusicMeta';
+import type { Track } from '../../api/types';
 
 /**
  * Обложка трека.
@@ -16,9 +18,19 @@ import { useTheme } from '../theme';
  */
 
 interface ThumbProps {
-  uri: string | null;
-  /** Из чего выводить цвет заглушки — обычно название трека. */
-  seed: string;
+  /**
+   * Трек, а не адрес картинки.
+   *
+   * Обложку компонент выбирает сам: сначала квадратную из YouTube Music,
+   * если её уже нашли, потом ту, что пришла с треком, потом заглушку.
+   *
+   * Это не удобство, а защита от ошибки. Пока каждый экран решал сам,
+   * я трижды подряд забыл подключить кэш в новом месте — в мини-плеере,
+   * в очереди и почти в карусели. Код при этом везде выглядел правильно,
+   * увидеть расхождение можно было только поставив экраны рядом.
+   * Теперь забыть негде.
+   */
+  track: Track;
   size: number;
   /** Переопределение скругления: карусель использует радиус карточки. */
   rounded?: number;
@@ -44,8 +56,11 @@ function hashString(value: string): number {
   return Math.abs(hash);
 }
 
-export const Thumb = memo(function Thumb({ uri, seed, size, rounded }: ThumbProps) {
+export const Thumb = memo(function Thumb({ track, size, rounded }: ThumbProps) {
   const theme = useTheme();
+  const cached = useCachedCover(track);
+  const uri = cached ?? track.artwork;
+  const seed = track.title;
 
   const borderRadius = useMemo(() => {
     if (rounded !== undefined) return rounded;

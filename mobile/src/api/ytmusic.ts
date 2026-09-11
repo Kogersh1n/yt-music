@@ -86,12 +86,60 @@ function columnText(column: unknown): string {
 }
 
 /**
+ * Слова, которые ничего не говорят о песне.
+ *
+ * К названиям на ютубе приписывают всё это пачками, и при сравнении
+ * они создают ложные совпадения: «official» есть в половине роликов.
+ */
+const NOISE = new Set([
+  'official', 'video', 'audio', 'lyrics', 'lyric', 'music', 'mv', 'hd', 'hq',
+  'remastered', 'version', 'feat', 'ft', 'prod', 'клип', 'клипец', 'текст',
+  'премьера', 'песня',
+]);
+
+/** Значимые слова строки: без пунктуации, скобок, шума и годов. */
+function tokens(value: string): Set<string> {
+  return new Set(
+    value
+      .toLowerCase()
+      .replace(/[([{].*?[)\]}]/g, ' ')
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .split(' ')
+      .filter((word) => word.length >= 3 && !NOISE.has(word) && !/^\d{4}$/.test(word)),
+  );
+}
+
+/**
+ * Похоже ли найденное на то, что искали.
+ *
+ * Без этой проверки выдача принималась любая: на запрос из несуществующих
+ * слов YouTube Music всё равно что-нибудь возвращает, и приложение
+ * показывало чужую обложку и чужой текст, ничем не выдавая ошибки.
+ *
+ * Сравниваем по значимым словам, а не по строке целиком: у ролика
+ * к названию приписано «(Клипец, 2020)», у аудиозаписи — нет,
+ * и точного совпадения ждать нельзя никогда.
+ */
+function looksLikeSame(query: string, found: string): boolean {
+  const want = tokens(query);
+  const got = tokens(found);
+  if (want.size === 0 || got.size === 0) return false;
+
+  let hits = 0;
+  for (const word of got) if (want.has(word)) hits += 1;
+
+  // Половина значимых слов найденного должна встречаться в запросе.
+  // Одного слова мало: «Meant To Be» совпало бы с «Be Yourself».
+  return hits / got.size >= 0.5;
+}
+
+/**
  * Найти аудиозапись по названию и исполнителю.
  *
- * Возвращает первый результат: выдача уже отсортирована по релевантности,
- * а перебирать варианты нам нечем — точного совпадения по названию
- * ожидать нельзя, у клипов к названию приписывают «Official Video»
- * и всё подобное.
+ * Берём первый результат — выдача отсортирована по релевантности, — но
+ * только если он действительно похож на запрошенное. Иначе возвращаем null:
+ * у любительских загрузок и миксов аудиозаписи в YouTube Music просто нет,
+ * и честнее не показать обложку, чем показать чужую.
  */
 export async function findSong(
   title: string,
@@ -116,11 +164,15 @@ export async function findSong(
   const best = square.length > 0 ? square[square.length - 1] : null;
 
   const columns = (item as { flexColumns?: unknown[] })?.flexColumns ?? [];
+  const foundTitle = columnText(columns[0]) || title;
+  const foundArtist = columnText(columns[1]).split('•')[0].trim() || artist;
+
+  if (!looksLikeSame(`${title} ${artist}`, `${foundTitle} ${foundArtist}`)) return null;
 
   return {
     videoId,
-    title: columnText(columns[0]) || title,
-    artist: columnText(columns[1]).split('•')[0].trim() || artist,
+    title: foundTitle,
+    artist: foundArtist,
     coverUrl: best ? sized(best.url, coverSize) : null,
   };
 }

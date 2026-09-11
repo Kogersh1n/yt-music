@@ -215,7 +215,11 @@ async def search_youtube(query: str, max_results: int = SEARCH_DEFAULT_LIMIT) ->
             "title": entry.get('title'),
             "author": entry.get('uploader') or entry.get('channel'),
             "duration": entry.get('duration', 0),
-            "cover": f"https://i.ytimg.com/vi/{entry.get('id')}/hqdefault.jpg",
+            # hq720, а не hqdefault: последний отдаётся как 480x360, то есть
+            # 4:3 с вшитыми чёрными полями сверху и снизу. Обрезка по квадрату
+            # их не убирает — они часть картинки. hq720 это честные 1280x720
+            # без полей. Проверено замером на живых роликах.
+            "cover": f"https://i.ytimg.com/vi/{entry.get('id')}/hq720.jpg",
             "url": f"https://www.youtube.com/watch?v={entry.get('id')}",
         }
         for entry in entries

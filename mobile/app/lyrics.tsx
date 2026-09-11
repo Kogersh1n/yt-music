@@ -5,6 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Gradient } from '../src/ui/components/Gradient';
 import { EmptyState } from '../src/ui/components/states';
+import { MiniPlayer } from '../src/ui/components/MiniPlayer';
 import { artworkGradient } from '../src/ui/artworkColor';
 import { peekDominantColor, resolveDominantColor } from '../src/ui/dominantColor';
 import { useTheme, useThemedStyles, type Theme } from '../src/ui/theme';
@@ -82,11 +83,12 @@ export default function LyricsScreen() {
         <View style={styles.headerButton} />
       </View>
 
-      <Body
-        lyrics={lyrics}
-        lines={lines}
-        bottomInset={insets.bottom + theme.spacing.xxl}
-      />
+      <Body lyrics={lyrics} lines={lines} bottomInset={theme.spacing.xl} />
+
+      {/* Текст читают, пока играет музыка, — управление здесь нужнее,
+          чем где-либо ещё. Нижний отступ списка при этом уменьшен:
+          полоска сама занимает высоту, и двойной запас оставлял дыру. */}
+      <MiniPlayer standalone />
     </Gradient>
   );
 }
