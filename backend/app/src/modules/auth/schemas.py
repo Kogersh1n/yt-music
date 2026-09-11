@@ -30,12 +30,19 @@ class LogoutRequest(BaseModel):
 
 
 class ForgotPasswordRequest(BaseModel):
-    token: str
-    new_password: SecretStr = Field(min_length=7, max_length=30)
+    """Первый шаг: попросить код на почту.
+
+    Раньше здесь лежали token и new_password — те же поля, что у второго
+    шага. Это описывало несуществующий сценарий: на момент запроса кода
+    ни кода, ни нового пароля у клиента ещё нет.
+    """
+    email: EmailStr
 
 
 class ResetPasswordRequest(BaseModel):
-    token: str
+    """Второй шаг: обменять код на новый пароль."""
+    email: EmailStr
+    code: str = Field(min_length=5, max_length=5)
     new_password: SecretStr = Field(min_length=7, max_length=30)
 
 

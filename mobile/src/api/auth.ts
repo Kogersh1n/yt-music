@@ -76,3 +76,33 @@ export function logout(refreshToken: string, signal?: AbortSignal): Promise<void
     signal,
   });
 }
+
+/**
+ * Первый шаг восстановления: попросить код на почту.
+ *
+ * Ответ одинаков и для существующего адреса, и для неизвестного —
+ * сервер намеренно не сообщает, зарегистрирован ли адрес. Экран поэтому
+ * тоже не должен делать вид, что знает: он просто говорит «если адрес
+ * есть, письмо отправлено».
+ */
+export function forgotPassword(email: string, signal?: AbortSignal): Promise<void> {
+  return request<void>('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+    signal,
+  });
+}
+
+/** Второй шаг: обменять код на новый пароль. Все сессии при этом гасятся. */
+export function resetPassword(
+  email: string,
+  code: string,
+  newPassword: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  return request<void>('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ email, code, new_password: newPassword }),
+    signal,
+  });
+}

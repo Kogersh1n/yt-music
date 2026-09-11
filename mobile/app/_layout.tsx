@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { setupPlayer } from '../src/player/setup';
 import { warmVisitorData } from '../src/api/innertube';
+import { AppErrorBoundary } from '../src/ui/components/AppErrorBoundary';
 import { initSession } from '../src/auth/session';
 import { useQueue } from '../src/player/queueStore';
 import { ThemeProvider, useTheme, useThemedStyles, FONT_ASSETS, type Theme } from '../src/ui/theme';
@@ -182,3 +183,11 @@ const makeStyles = (t: Theme) =>
     fatalTitle: { ...t.type.section, color: t.colors.text },
     fatalHint: { ...t.type.meta, color: t.colors.textDim, textAlign: 'center' },
   });
+
+/**
+ * expo-router ищет экспорт с этим именем и показывает его вместо упавшего
+ * экрана. Имя задано роутером — переименовать нельзя.
+ */
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+  return <AppErrorBoundary error={error} retry={retry} />;
+}

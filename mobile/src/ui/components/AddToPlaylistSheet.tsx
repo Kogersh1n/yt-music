@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useTheme, useThemedStyles, type Theme } from '../theme';
 import { usePlaylists, usePlaylistActions } from '../../features/usePlaylists';
 import { notifySuccess } from '../haptics';

@@ -1,7 +1,7 @@
 import { memo, type ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Tabs } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MiniPlayer } from '../../src/ui/components/MiniPlayer';
 import { useTheme, useThemedStyles, type Theme } from '../../src/ui/theme';

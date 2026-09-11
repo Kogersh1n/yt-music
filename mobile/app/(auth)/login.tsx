@@ -92,6 +92,15 @@ export default function LoginScreen() {
           disabled={!email.trim() || !password}
         />
 
+        {/* Адрес передаём дальше: если его уже ввели, на экране
+            восстановления набирать заново незачем. */}
+        <LinkButton
+          label="Забыли пароль?"
+          onPress={() =>
+            router.push({ pathname: '/(auth)/forgot', params: { email: email.trim() } })
+          }
+        />
+
         <LinkButton
           label="Нет аккаунта — зарегистрироваться"
           onPress={() => router.push('/(auth)/register')}

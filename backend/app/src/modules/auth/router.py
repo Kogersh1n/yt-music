@@ -8,13 +8,16 @@ from src.core.deps import SessionDep
 from src.modules.auth.exceptions import (
     CredentialsTaken,
     InvalidCredentials,
+    InvalidOrExpiredCode,
     TokenExpiredOrInvalid,
 )
 
 from src.modules.auth.schemas import (
+    ForgotPasswordRequest,
     LogoutRequest,
     RefreshRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     TokensResponse,
     VerifyRequest,
 )
@@ -100,3 +103,43 @@ async def logout_user(
     неотличимо от «вышли успешно».
     """
     await auth_service.logout_user(session, raw_token=data.refresh_token)
+
+
+# ─── Восстановление пароля ───────────────────────────────────────────────
+#
+# Два шага, между ними письмо с пятизначным кодом — та же механика, что
+# у подтверждения почты при регистрации.
+#
+# Первый шаг отвечает одинаково независимо от того, есть такой адрес
+# или нет: иначе ручка становится способом проверить, зарегистрирован ли
+# человек. Второй расходует попытки — код короткий, и без ограничения
+# перебирается за минуты.
+
+@router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
+async def forgot_password(data: ForgotPasswordRequest, session: SessionDep) -> None:
+    """Просит прислать код на почту.
+
+    Всегда 204, даже если адрес неизвестен, — см. комментарий выше.
+    """
+    await auth_service.forgot_password(session, email=data.email)
+
+
+@router.post(
+    "/reset-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        InvalidOrExpiredCode.status_code: {"description": InvalidOrExpiredCode.detail}
+    },
+)
+async def reset_password(data: ResetPasswordRequest, session: SessionDep) -> None:
+    """Меняет пароль по коду.
+
+    Все сессии при этом гасятся: восстановление — это в том числе ответ
+    на «аккаунт увели», и чужой вход должен прекратиться.
+    """
+    await auth_service.reset_password(
+        session,
+        email=data.email,
+        code=data.code,
+        new_password=data.new_password.get_secret_value(),
+    )

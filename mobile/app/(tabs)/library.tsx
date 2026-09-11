@@ -4,7 +4,7 @@ import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Chip } from '../../src/ui/components/Chip';
 import { TrackRow } from '../../src/ui/components/TrackRow';
 import { ActionSheet, type SheetAction } from '../../src/ui/components/ActionSheet';

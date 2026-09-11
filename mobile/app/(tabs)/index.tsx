@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Carousel } from '../../src/ui/components/Carousel';
 import { TrackRow } from '../../src/ui/components/TrackRow';
 import { CarouselSkeleton, ErrorState, EmptyState } from '../../src/ui/components/states';

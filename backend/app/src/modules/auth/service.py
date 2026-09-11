@@ -26,6 +26,12 @@ from .utils.password import (
 )
 
 from .utils.token import hash_token, generate_refresh_token
+from .utils.reset import (
+    check_reset_code,
+    delete_reset_code,
+    generate_reset_code,
+    store_reset_code,
+)
 
 from src.integrations.smtp.service import EmailService, get_email_service
 
@@ -104,6 +110,55 @@ class AuthService:
 
         tokens, _ = await self._issue_token_pair(session, user_id=user.id)
         return tokens
+
+    async def forgot_password(
+            self,
+            session: AsyncSession,
+            *,
+            email: EmailStr,
+        ) -> None:
+        """Отправляет код восстановления, если такой адрес есть.
+
+        Ответ одинаков независимо от того, нашёлся пользователь или нет —
+        и это не небрежность. Разный ответ превращает ручку в способ
+        узнать, зарегистрирован ли адрес: перебрал список почт, посмотрел,
+        где ошибка, а где нет. Поэтому письмо уходит молча, а наружу
+        всегда идёт «если адрес есть, код отправлен».
+        """
+        user = await self.user_repo.get_by_email(session, email=email)
+        if user is None:
+            return
+
+        code = generate_reset_code()
+        await store_reset_code(email, code)
+        self.email_service.send_password_reset_email(email_to=email, token=code)
+
+    async def reset_password(
+            self,
+            session: AsyncSession,
+            *,
+            email: EmailStr,
+            code: str,
+            new_password: str,
+        ) -> None:
+        """Меняет пароль по коду и гасит все сессии.
+
+        Сессии гасятся намеренно. Восстановление пароля — это в том числе
+        ответ на «аккаунт увели»: если оставить чужие refresh-токены
+        живыми, смена пароля не выгонит того, кто уже вошёл.
+        """
+        if not await check_reset_code(email, code):
+            raise InvalidOrExpiredCode()
+
+        user = await self.user_repo.get_by_email(session, email=email)
+        if user is None:
+            raise InvalidOrExpiredCode()
+
+        await delete_reset_code(email)
+
+        user.hashed_password = get_password_hash(new_password)
+        await self.refresh_token_repo.revoke_all_for_user(session, user_id=user.id)
+        await session.commit()
 
     async def login_user(
             self,

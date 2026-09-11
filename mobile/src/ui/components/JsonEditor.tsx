@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useTheme, useThemedStyles, serializeTheme, type Theme, type ThemeSource } from '../theme';
 import { notifyError, notifySuccess } from '../haptics';
 

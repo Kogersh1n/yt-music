@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, useThemeControls, useThemedStyles, type Theme } from '../../src/ui/theme';
 import { useSettings, updateSettings } from '../../src/local/settings';
@@ -170,19 +170,32 @@ export default function ProfileScreen() {
           </Text>
         </Pressable>
 
-        <View style={styles.stats}>
-          <Stat value={String(stats.played)} label="запусков" />
-          <Stat value={String(stats.uniqueTracks)} label="разных треков" />
-          <Stat value={formatListening(stats.seconds)} label="прослушано" />
-          <Stat value={String(liked.length)} label="понравилось" />
-        </View>
+        <Text style={styles.likesLine}>
+          {liked.length === 0
+            ? 'Понравившихся треков пока нет'
+            : `${liked.length} в понравившихся`}
+        </Text>
+
       </View>
 
-      {/* --- Кого слушают --- */}
-      {allTime.topArtists.length > 0 ? (
-        <>
-          <Text style={styles.section}>Больше всего слушали</Text>
-          <View style={styles.card}>
+      {/* --- Активность ---
+          Раньше статистика была раскидана: счётчики в карточке профиля,
+          топ исполнителей отдельной секцией, итоги месяца третьей ссылкой.
+          Всё это про одно и то же — что и сколько слушали, — и стоять
+          должно рядом. */}
+      <Text style={styles.section}>Активность</Text>
+
+      <View style={styles.card}>
+        <View style={styles.stats}>
+          <Stat value={formatListening(allTime.totalSeconds)} label="прослушано" />
+          <Stat value={String(allTime.totalPlays)} label="запусков" />
+          <Stat value={String(allTime.uniqueTracks)} label="разных треков" />
+          <Stat value={String(allTime.uniqueArtists)} label="исполнителей" />
+        </View>
+
+        {allTime.topArtists.length > 0 ? (
+          <>
+            <Text style={styles.subheading}>Чаще всего</Text>
             {allTime.topArtists.map((artist, index) => (
               <View key={artist.author} style={styles.rank}>
                 <Text style={styles.rankNumber}>{index + 1}</Text>
@@ -192,17 +205,43 @@ export default function ProfileScreen() {
                 <Text style={styles.rankValue}>{formatListening(artist.seconds)}</Text>
               </View>
             ))}
-          </View>
-        </>
-      ) : null}
+          </>
+        ) : null}
 
-      {/* --- Итоги --- */}
-      <Text style={styles.section}>Итоги</Text>
+        {allTime.topTracks.length > 0 ? (
+          <>
+            <Text style={styles.subheading}>Любимые треки</Text>
+            {allTime.topTracks.map((track, index) => (
+              <View key={track.trackId} style={styles.rank}>
+                <Text style={styles.rankNumber}>{index + 1}</Text>
+                <View style={styles.rankText}>
+                  <Text numberOfLines={1} style={styles.rankName}>
+                    {track.title}
+                  </Text>
+                  <Text numberOfLines={1} style={styles.rankSub}>
+                    {track.author}
+                  </Text>
+                </View>
+                <Text style={styles.rankValue}>
+                  {track.plays} {track.plays === 1 ? 'раз' : 'раза'}
+                </Text>
+              </View>
+            ))}
+          </>
+        ) : null}
+
+        {allTime.totalPlays === 0 ? (
+          <Text style={styles.emptyHint}>
+            Пока нечего показать — включите что-нибудь, и здесь появятся цифры.
+          </Text>
+        ) : null}
+      </View>
+
       <Pressable style={styles.link} onPress={() => router.push('/recap')}>
         <MaterialIcons name="insights" size={22} color={theme.colors.text} />
         <View style={styles.linkText}>
           <Text style={styles.linkTitle}>Итоги месяца</Text>
-          <Text style={styles.linkHint}>Что и сколько вы слушали</Text>
+          <Text style={styles.linkHint}>То же самое, но по месяцам</Text>
         </View>
         <MaterialIcons name="chevron-right" size={22} color={theme.colors.textFaint} />
       </Pressable>
@@ -385,6 +424,18 @@ function Toggle({
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
+    subheading: {
+      ...t.type.meta,
+      color: t.colors.textFaint,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      marginTop: t.spacing.md,
+      marginBottom: t.spacing.xs,
+    },
+    rankText: { flex: 1 },
+    rankSub: { ...t.type.meta, color: t.colors.textFaint },
+    emptyHint: { ...t.type.meta, color: t.colors.textDim, marginTop: t.spacing.sm },
+    likesLine: { ...t.type.meta, color: t.colors.textDim, marginTop: t.spacing.sm },
     rank: {
       flexDirection: 'row',
       alignItems: 'center',
