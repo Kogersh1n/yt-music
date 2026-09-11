@@ -157,4 +157,28 @@ class SongRepository(BaseRepository[Song, SongCreate, SongUpdate]):
         return result.scalar_one_or_none()
 
 
+    async def get_many(
+        self,
+        session: AsyncSession,
+        *,
+        song_ids: Sequence[UUID],
+    ) -> list[Song]:
+        """Песни по списку id — одним запросом.
+
+        Нужна списку понравившихся: тот брал их по одной в цикле, то есть
+        на две сотни лайков делал двести один поход в базу, и все
+        последовательно.
+
+        Порядок задаём здесь же, по названию: liked_ids отдаёт множество,
+        и без сортировки выдача меняла бы порядок от запроса к запросу.
+        """
+        if not song_ids:
+            return []
+
+        result = await session.execute(
+            select(Song).where(Song.id.in_(song_ids)).order_by(Song.title)
+        )
+        return list(result.scalars().all())
+
+
 song_repository = SongRepository()     

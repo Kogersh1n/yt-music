@@ -1,7 +1,7 @@
 import { useSyncExternalStore, useCallback } from 'react';
 import { readJSON, writeJSON } from './storage';
 import { addLike, removeLike, listLiked } from '../api/songs';
-import { trackKey, type SongResponse, type Track } from '../api/types';
+import { trackFromSong, trackKey, type SongResponse, type Track } from '../api/types';
 
 /**
  * Лайки.
@@ -26,7 +26,18 @@ import { trackKey, type SongResponse, type Track } from '../api/types';
 
 const KEY = 'likes.v1';
 
+/**
+ * Снятые лайки, о которых сервер ещё не знает.
+ *
+ * Нужны, потому что снятие могло не доехать: связь пропала, приложение
+ * закрыли. Без этого списка сведение при следующем входе увидело бы лайк
+ * на сервере и вернуло его обратно — то есть снять лайк офлайн было бы
+ * невозможно в принципе.
+ */
+const UNLIKED_KEY = 'likes.unliked.v1';
+
 let liked: Set<string> = new Set(readJSON<string[]>(KEY, []));
+let unliked: Set<string> = new Set(readJSON<string[]>(UNLIKED_KEY, []));
 const listeners = new Set<() => void>();
 /** Снимок для useSyncExternalStore должен быть стабильным по ссылке. */
 let snapshot: readonly string[] = Object.freeze([...liked]);
@@ -58,8 +69,15 @@ export function toggleLike(track: Track): void {
   const key = trackKey(track);
   const nowLiked = !liked.has(key);
 
-  if (nowLiked) liked.add(key);
-  else liked.delete(key);
+  if (nowLiked) {
+    liked.add(key);
+    unliked.delete(key);
+  } else {
+    liked.delete(key);
+    // Помним о снятии, пока сервер его не подтвердит.
+    if (track.source === 'library') unliked.add(key);
+  }
+  writeJSON(UNLIKED_KEY, [...unliked]);
   commit();
 
   // На сервере лайк связан с записью песни. У треков, играющих по ссылке
@@ -87,13 +105,15 @@ export function useIsLiked(songId: string): boolean {
  * Объединение, а не замена: на телефоне могли остаться лайки, поставленные
  * до входа, и терять их при первом же входе было бы странно.
  */
-export async function syncLikes(library: readonly Track[]): Promise<void> {
+export async function syncLikes(library: readonly Track[]): Promise<boolean> {
   let songs: SongResponse[];
   try {
     songs = await listLiked();
   } catch {
     // Нет связи или нет входа — работаем с тем, что на устройстве.
-    return;
+    // Возвращаем false, чтобы вызывающий не считал сведение состоявшимся
+    // и повторил его позже.
+    return false;
   }
 
   // Серверные → локальные.
@@ -108,7 +128,19 @@ export async function syncLikes(library: readonly Track[]): Promise<void> {
   // изменится там, менять надо и здесь.
   let changed = false;
   for (const song of songs) {
-    const key = song.youtube_id ?? song.id;
+    // Ключ берём тем же способом, что и везде, а не собираем вручную:
+    // правило живёт в одном месте и не может разойтись.
+    const key = trackKey(trackFromSong(song));
+
+    // Снятые лайки не воскрешаем. Если ключ значится снятым, значит
+    // снятие не доехало до сервера — повторяем его, а не откатываем
+    // действие пользователя. Без этого снять лайк было невозможно:
+    // сведение возвращало его обратно при каждом входе.
+    if (unliked.has(key)) {
+      void removeLike(song.id).catch(() => undefined);
+      continue;
+    }
+
     if (!liked.has(key)) {
       liked.add(key);
       changed = true;
@@ -116,7 +148,7 @@ export async function syncLikes(library: readonly Track[]): Promise<void> {
   }
   if (changed) commit();
 
-  const remote = songs.map((song) => song.id);
+  const remoteSet = new Set(songs.map((song) => song.id));
 
   // Локальные → серверные.
   //
@@ -124,10 +156,17 @@ export async function syncLikes(library: readonly Track[]): Promise<void> {
   // записи песни, а локально хранится youtubeId. Отсюда и ограничение —
   // отправится только то, что успело подгрузиться. Лайки на треках
   // из незагруженных страниц уедут при следующем входе.
-  const remoteSet = new Set(remote);
   for (const track of library) {
     if (remoteSet.has(track.id)) continue;
     if (!liked.has(trackKey(track))) continue;
     void addLike(track.id).catch(() => undefined);
   }
+
+  // Отработавшие снятия можно забыть: сервер о них уже знает.
+  if (unliked.size > 0) {
+    unliked.clear();
+    writeJSON(UNLIKED_KEY, []);
+  }
+
+  return true;
 }

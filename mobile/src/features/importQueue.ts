@@ -38,7 +38,16 @@ let snapshot: readonly QueueItem[] = Object.freeze([]);
 
 function commit(): void {
   snapshot = Object.freeze([...items]);
-  listeners.forEach((listener) => listener());
+
+  // Каждый подписчик отдельно: падение одного не должно ронять остальных
+  // и тем более выбрасывать исключение в середину обработки очереди.
+  for (const listener of listeners) {
+    try {
+      listener();
+    } catch {
+      // Перерисовка одного экрана — не повод останавливать загрузку.
+    }
+  }
 }
 
 function subscribe(listener: () => void): () => void {
@@ -62,6 +71,8 @@ async function pump(): Promise<void> {
   if (running) return;
   running = true;
 
+  let addedAny = false;
+
   try {
     for (;;) {
       const next = items.find((item) => item.state === 'waiting');
@@ -82,14 +93,21 @@ async function pump(): Promise<void> {
         });
       }
 
-      // Уведомление вне блока перехвата: пока оно стояло внутри, ошибка
-      // в самом слушателе помечала трек неудачным, хотя он уже добавился.
-      if (added) {
-        try {
-          onAdded?.();
-        } catch {
-          // Слушатель — дело вызывающего экрана; его сбой не касается очереди.
-        }
+      if (added) addedAny = true;
+    }
+    // Уведомляем один раз на всю пачку, а не на каждый трек.
+    //
+    // Слушатель сбрасывает кэш медиатеки, а это перезапрос всех загруженных
+    // страниц. На полусотне треков это полсотни таких перезапросов, и все
+    // они лезут в тот же канал, которым идёт скачивание.
+    //
+    // Вне блока перехвата: пока вызов стоял внутри, ошибка в самом
+    // слушателе помечала трек неудачным, хотя он уже добавился.
+    if (addedAny) {
+      try {
+        onAdded?.();
+      } catch {
+        // Слушатель — дело вызывающего экрана; его сбой не касается очереди.
       }
     }
   } finally {
@@ -104,7 +122,12 @@ async function pump(): Promise<void> {
  * не должно приводить к двум скачиваниям одного файла.
  */
 export function enqueue(tracks: readonly Track[]): void {
-  const known = new Set(items.filter((i) => i.state !== 'failed').map((i) => i.key));
+  // Неудачные тоже считаются известными. Раньше они исключались, и повторное
+  // добавление того же трека создавало вторую запись с тем же ключом:
+  // patch() правил обе, список рисовал два одинаковых ряда с одинаковым
+  // ключом, а старая неудачная помечалась готовой, ничего не скачав.
+  // Повтор делается кнопкой «Повторить», для этого есть retryFailed().
+  const known = new Set(items.map((i) => i.key));
 
   const fresh = tracks
     .filter((track) => track.youtubeId && !known.has(trackKey(track)))

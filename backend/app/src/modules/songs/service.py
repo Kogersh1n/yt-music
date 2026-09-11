@@ -390,7 +390,7 @@ class SongService:
         if not song_ids:
             return []
 
-        songs = [await self.repo.get(session, song_id) for song_id in song_ids]
+        songs = await self.repo.get_many(session, song_ids=list(song_ids))
         return await self._enrich_many([song for song in songs if song is not None])
 
 

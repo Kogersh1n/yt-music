@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { setupPlayer } from '../src/player/setup';
 import { warmVisitorData } from '../src/api/innertube';
+import { setImportListener } from '../src/features/importQueue';
 import { AppErrorBoundary } from '../src/ui/components/AppErrorBoundary';
 import { initSession } from '../src/auth/session';
 import { useQueue } from '../src/player/queueStore';
@@ -40,6 +41,16 @@ export default function RootLayout() {
   useEffect(() => {
     let cancelled = false;
 
+    // Медиатеку обновляем из корневого layout, а не с экрана поиска.
+    //
+    // Раньше слушатель ставил и снимал экран «Обзор», и уход с него
+    // посреди пачки обнулял его: оставшиеся треки добавлялись в базу,
+    // но в медиатеке не появлялись до ручного обновления. Очередь живёт
+    // дольше экрана, значит и слушатель должен.
+    setImportListener(() => {
+      void queryClient.invalidateQueries({ queryKey: ['songs'] });
+    });
+
     // Метку сессии YouTube запрашиваем заранее, параллельно подъёму плеера.
     // Без этого первое нажатие на трек ждало её и ответ плеера подряд;
     // теперь к моменту нажатия она обычно уже готова.
@@ -59,6 +70,7 @@ export default function RootLayout() {
 
     return () => {
       cancelled = true;
+      setImportListener(null);
     };
   }, [restore]);
 

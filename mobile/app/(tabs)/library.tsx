@@ -60,16 +60,32 @@ export default function LibraryScreen() {
    * Один раз за вход: список меняется редко, а гонять сверку на каждое
    * появление экрана незачем.
    */
-  const syncedRef = useRef(false);
+  const syncedCountRef = useRef(0);
 
   useEffect(() => {
-    if (!signedIn || tracks.length === 0 || syncedRef.current) return;
-    syncedRef.current = true;
-    void syncLikes(tracks);
+    if (!signedIn || tracks.length === 0) return;
+
+    // Повторяем по мере подгрузки страниц, а не один раз.
+    //
+    // Отправка локальных лайков на сервер требует UUID записи песни,
+    // а он известен только для загруженного. Медиатека приходит
+    // страницами по тридцать, и единственный прогон после первой
+    // страницы навсегда пропустил бы всё остальное.
+    //
+    // Считаем по числу известных треков: выросло — сводим снова.
+    if (tracks.length <= syncedCountRef.current) return;
+
+    const attempted = tracks.length;
+
+    // Отметку ставим по успеху, а не по попытке: сведение, сорвавшееся
+    // из-за плохой связи, должно повториться, а не пропасть до перезапуска.
+    void syncLikes(tracks).then((ok) => {
+      if (ok) syncedCountRef.current = attempted;
+    });
   }, [signedIn, tracks]);
 
   useEffect(() => {
-    if (!signedIn) syncedRef.current = false;
+    if (!signedIn) syncedCountRef.current = 0;
   }, [signedIn]);
   const cachedKeys = useCachedKeys();
 
@@ -94,16 +110,17 @@ export default function LibraryScreen() {
   });
 
   /**
-   * Фильтр «Понравившиеся» работает по локальным лайкам.
+   * Фильтр «Понравившиеся».
    *
-   * Серверный `liked` — это общий счётчик по всем пользователям, а не «мой
-   * лайк»: фильтровать по нему бессмысленно. Когда на бэкенде появятся
-   * персональные лайки, сюда встанет отдельный запрос вместо фильтрации.
+   * Ключ — trackKey(), а не track.id. Раньше здесь стоял id, и фильтр был
+   * всегда пуст для всего, что импортировано с ютуба: лайк кладётся под
+   * youtubeId, а спрашивали по UUID. Сердечко в строке горело, а список
+   * «Понравившиеся» показывал пустоту.
    */
   const byFilter = useMemo(() => {
     if (filter === 'liked') {
       const set = new Set(likedIds);
-      return tracks.filter((track) => set.has(track.id));
+      return tracks.filter((track) => set.has(trackKey(track)));
     }
     if (filter === 'downloaded') {
       // Раньше здесь всегда было пусто: показывать было нечего. Теперь есть —

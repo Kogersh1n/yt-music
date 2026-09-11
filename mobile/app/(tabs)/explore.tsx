@@ -19,7 +19,7 @@ import { useLibrary, useYouTubeSearch } from '../../src/features/useLibrary';
 import { useIsSignedIn } from '../../src/auth/session';
 import { useDebounced } from '../../src/features/useDebounced';
 import { usePlayback } from '../../src/player/usePlayback';
-import { enqueue, setImportListener } from '../../src/features/importQueue';
+import { enqueue } from '../../src/features/importQueue';
 import { ImportPanel } from '../../src/ui/components/ImportPanel';
 import type { Track } from '../../src/api/types';
 
@@ -50,15 +50,6 @@ export default function ExploreScreen() {
    * «выбрать» занимала бы место ради действия, которое нужно изредка.
    */
   const [selected, setSelected] = useState<Set<string> | null>(null);
-
-  // Когда трек добавился, медиатека изменилась — сбрасываем её кэш,
-  // иначе новый трек не появится до ручного обновления.
-  useEffect(() => {
-    setImportListener(() => {
-      void queryClient.invalidateQueries({ queryKey: ['songs'] });
-    });
-    return () => setImportListener(null);
-  }, [queryClient]);
 
   // Список результатов — в ref: иначе новый handlePress на каждую выдачу
   // поиска пересоздаёт renderItem и перерисовывает весь список целиком.
