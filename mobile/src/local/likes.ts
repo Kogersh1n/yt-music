@@ -1,7 +1,7 @@
 import { useSyncExternalStore, useCallback } from 'react';
 import { readJSON, writeJSON } from './storage';
 import { addLike, removeLike, listLiked } from '../api/songs';
-import { trackKey, type Track } from '../api/types';
+import { trackKey, type SongResponse, type Track } from '../api/types';
 
 /**
  * Лайки.
@@ -88,22 +88,27 @@ export function useIsLiked(songId: string): boolean {
  * до входа, и терять их при первом же входе было бы странно.
  */
 export async function syncLikes(library: readonly Track[]): Promise<void> {
-  const byId = new Map(library.map((track) => [track.id, track]));
-
-  let remote: readonly string[] = [];
+  let songs: SongResponse[];
   try {
-    const songs = await listLiked();
-    remote = songs.map((song) => song.id);
+    songs = await listLiked();
   } catch {
     // Нет связи или нет входа — работаем с тем, что на устройстве.
     return;
   }
 
   // Серверные → локальные.
+  //
+  // Ключ выводим из самого ответа, а не ищем трек в медиатеке. Медиатека
+  // подгружается страницами, и для песни из ещё не загруженной страницы
+  // поиск не нашёл бы ничего — ключом стал бы UUID вместо youtubeId.
+  // Лайк тогда не отобразился бы в интерфейсе (там ключ считается
+  // по трекам), а в хранилище копилась бы мёртвая запись.
+  //
+  // Правило совпадает с trackKey() и обязано совпадать: если оно
+  // изменится там, менять надо и здесь.
   let changed = false;
-  for (const songId of remote) {
-    const track = byId.get(songId);
-    const key = track ? trackKey(track) : songId;
+  for (const song of songs) {
+    const key = song.youtube_id ?? song.id;
     if (!liked.has(key)) {
       liked.add(key);
       changed = true;
@@ -111,8 +116,14 @@ export async function syncLikes(library: readonly Track[]): Promise<void> {
   }
   if (changed) commit();
 
-  // Локальные → серверные. Только те, что есть в медиатеке: остальным
-  // нечего сопоставить на той стороне.
+  const remote = songs.map((song) => song.id);
+
+  // Локальные → серверные.
+  //
+  // Здесь медиатека нужна по-настоящему: чтобы отправить лайк, нужен UUID
+  // записи песни, а локально хранится youtubeId. Отсюда и ограничение —
+  // отправится только то, что успело подгрузиться. Лайки на треках
+  // из незагруженных страниц уедут при следующем входе.
   const remoteSet = new Set(remote);
   for (const track of library) {
     if (remoteSet.has(track.id)) continue;

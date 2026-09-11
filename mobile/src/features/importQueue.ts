@@ -69,16 +69,27 @@ async function pump(): Promise<void> {
 
       patch(next.key, { state: 'active', stage: 'extract' });
 
+      let added = false;
       try {
         await importTrack(next.track, (progress) => patch(next.key, { stage: progress.stage }));
         patch(next.key, { state: 'done', stage: null });
-        onAdded?.();
+        added = true;
       } catch (error) {
         patch(next.key, {
           state: 'failed',
           stage: null,
           error: error instanceof Error ? error.message : 'Не удалось добавить',
         });
+      }
+
+      // Уведомление вне блока перехвата: пока оно стояло внутри, ошибка
+      // в самом слушателе помечала трек неудачным, хотя он уже добавился.
+      if (added) {
+        try {
+          onAdded?.();
+        } catch {
+          // Слушатель — дело вызывающего экрана; его сбой не касается очереди.
+        }
       }
     }
   } finally {

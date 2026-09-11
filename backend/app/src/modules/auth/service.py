@@ -158,7 +158,9 @@ class AuthService:
 
         user.hashed_password = get_password_hash(new_password)
         await self.refresh_token_repo.revoke_all_for_user(session, user_id=user.id)
-        await session.commit()
+        # Коммит делает зависимость сессии на успешном выходе из запроса.
+        # Явный нужен только там, где следом бросается исключение — иначе
+        # откат отменил бы уже сделанное (см. обнаружение кражи токена).
 
     async def login_user(
             self,

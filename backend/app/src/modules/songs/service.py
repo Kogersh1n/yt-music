@@ -19,7 +19,7 @@ from src.integrations.s3 import (
 
 from src.modules.songs.models import Song
 from src.modules.songs.repository import SongRepository,song_repository 
-from src.modules.songs.schemas import SongCreate, SongResponse, YouTubeSearchResponse
+from src.modules.songs.schemas import SongCreate, SongResponse
 from src.modules.songs.utils import download_youtube_audio, download_thumbnail, get_youtube_stream_url, search_youtube
 
 
