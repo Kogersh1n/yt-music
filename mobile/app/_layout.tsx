@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { setupPlayer } from '../src/player/setup';
+import { warmVisitorData } from '../src/api/innertube';
 import { initSession } from '../src/auth/session';
 import { useQueue } from '../src/player/queueStore';
 import { ThemeProvider, useTheme, useThemedStyles, FONT_ASSETS, type Theme } from '../src/ui/theme';
@@ -37,6 +38,11 @@ export default function RootLayout() {
 
   useEffect(() => {
     let cancelled = false;
+
+    // Метку сессии YouTube запрашиваем заранее, параллельно подъёму плеера.
+    // Без этого первое нажатие на трек ждало её и ответ плеера подряд;
+    // теперь к моменту нажатия она обычно уже готова.
+    warmVisitorData();
 
     setupPlayer()
       .then(() => {

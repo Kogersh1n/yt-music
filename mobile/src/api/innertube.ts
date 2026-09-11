@@ -1,3 +1,5 @@
+import { readJSON, writeJSON } from '../local/storage';
+
 /**
  * Общая основа для запросов к внутреннему API YouTube.
  *
@@ -18,11 +20,16 @@
  * Метка сессии.
  *
  * Без неё любой запрос к плееру отвечает LOGIN_REQUIRED — именно на этом
- * ломались все попытки повторить запрос вручную. Живёт долго и одинакова
- * для всех запросов, поэтому берётся один раз за запуск: иначе на каждое
- * включение трека уходило бы два обращения вместо одного.
+ * ломались все попытки повторить запрос вручную.
+ *
+ * Хранится на диске, а не только в памяти. Раньше первое включение после
+ * каждого запуска приложения платило за неё целую секунду; метка при этом
+ * живёт долго и между запусками не меняется, так что платить повторно
+ * было не за что.
  */
-let visitorData: string | null = null;
+const STORAGE_KEY = 'innertube.visitor.v1';
+
+let visitorData: string | null = readJSON<string | null>(STORAGE_KEY, null);
 
 /** Незавершённый запрос метки. Без него десять треков подряд запросили бы её десять раз. */
 let pending: Promise<string> | null = null;
@@ -33,7 +40,48 @@ const USER_AGENT =
 
 export const INNERTUBE_USER_AGENT = USER_AGENT;
 
-async function fetchVisitorData(): Promise<string> {
+/**
+ * Откуда берём метку.
+ *
+ * sw.js_data — служебный ответ для service worker, около трёх килобайт.
+ * Раньше метка добывалась с главной страницы youtube.com, а это 864 КБ
+ * ради строки в 520 символов: замер показал секунду против трети секунды.
+ * На мобильной сети разница больше.
+ *
+ * Главная оставлена запасным вариантом: служебный ответ не задокументирован
+ * и может исчезнуть, а разметка главной меняется медленнее.
+ */
+const SW_DATA = 'https://www.youtube.com/sw.js_data';
+
+/** Метка узнаётся по префиксу и длине: в ответе она лежит без имени поля. */
+function findVisitorToken(node: unknown): string | null {
+  if (typeof node === 'string') {
+    return node.startsWith('Cgt') && node.length > 60 ? node : null;
+  }
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const found = findVisitorToken(item);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+async function fromServiceWorkerData(): Promise<string | null> {
+  const response = await fetch(SW_DATA, { headers: { 'User-Agent': USER_AGENT } });
+  const text = await response.text();
+
+  // Ответ начинается с защитного префикса )]}' — JSON идёт со второй строки.
+  const body = text.startsWith(")]}'") ? text.slice(text.indexOf('\n') + 1) : text;
+
+  try {
+    return findVisitorToken(JSON.parse(body) as unknown);
+  } catch {
+    return null;
+  }
+}
+
+async function fromHomePage(): Promise<string> {
   const response = await fetch('https://www.youtube.com/', {
     headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'en-US,en;q=0.9' },
   });
@@ -46,6 +94,16 @@ async function fetchVisitorData(): Promise<string> {
   return JSON.parse(`"${match[1]}"`) as string;
 }
 
+async function fetchVisitorData(): Promise<string> {
+  try {
+    const light = await fromServiceWorkerData();
+    if (light) return light;
+  } catch {
+    // Служебный ответ недоступен — идём длинным путём.
+  }
+  return fromHomePage();
+}
+
 export async function getVisitorData(force = false): Promise<string> {
   if (!force && visitorData) return visitorData;
 
@@ -56,6 +114,7 @@ export async function getVisitorData(force = false): Promise<string> {
   pending = fetchVisitorData()
     .then((value) => {
       visitorData = value;
+      writeJSON(STORAGE_KEY, value);
       return value;
     })
     .finally(() => {
@@ -161,3 +220,17 @@ export function collect(node: unknown, key: string): unknown[] {
 }
 
 export const isString = (value: unknown): value is string => typeof value === 'string';
+
+/**
+ * Запросить метку заранее, не дожидаясь первого включения.
+ *
+ * Вызывается при старте приложения. Без этого первое нажатие на трек
+ * ждало и метку, и ответ плеера подряд; теперь метка обычно уже готова,
+ * и остаётся только запрос плеера.
+ *
+ * Ошибку гасим: это фоновая подготовка, и её неудача не должна
+ * ничего ломать — обычный путь всё равно запросит метку сам.
+ */
+export function warmVisitorData(): void {
+  void getVisitorData().catch(() => undefined);
+}
