@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Thumb } from '../src/ui/components/Thumb';
+import { useCachedCover } from '../src/features/useMusicMeta';
 import { EmptyState } from '../src/ui/components/states';
 import { useTheme, useThemedStyles, type Theme } from '../src/ui/theme';
 import { useQueue } from '../src/player/queueStore';
@@ -83,13 +84,17 @@ function QueueRow({
 }) {
   const theme = useTheme();
   const styles = useThemedStyles(makeStyles);
+  // Та же обложка, что в медиатеке, плеере и мини-плеере. Очередь была
+  // последним местом, где оставался кадр клипа.
+  const cover = useCachedCover(track) ?? track.artwork;
+
   return (
     <Pressable
       onPress={onPlay}
       style={styles.row}
       android_ripple={{ color: 'rgba(128,128,128,0.16)' }}
     >
-      <Thumb uri={track.artwork} seed={track.title} size={40} />
+      <Thumb uri={cover} seed={track.title} size={40} />
 
       <View style={styles.text}>
         <Text numberOfLines={1} style={[styles.title, isActive && styles.activeTitle]}>
