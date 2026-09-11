@@ -147,7 +147,7 @@ export default function PlayerScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => toggleLike(trackKey(track))}
+            onPress={() => toggleLike(track)}
             hitSlop={12}
             style={styles.action}
             accessibilityLabel={liked ? 'Убрать из понравившихся' : 'Нравится'}

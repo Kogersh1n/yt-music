@@ -45,7 +45,7 @@ export default function PlaylistScreen() {
   const menuActions = useMemo<SheetAction[]>(() => {
     if (!menuTrack || !id) return [];
     return [
-      { label: 'Нравится', icon: 'favorite', onPress: () => toggleLike(trackKey(menuTrack)) },
+      { label: 'Нравится', icon: 'favorite', onPress: () => toggleLike(menuTrack) },
       {
         label: 'Убрать из плейлиста',
         icon: 'playlist-remove',

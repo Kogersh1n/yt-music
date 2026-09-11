@@ -29,6 +29,15 @@ interface TrackRowProps {
   track: Track;
   index: number;
   onPress: (index: number) => void;
+  /**
+   * Режим выбора: строка не играет по нажатию, а отмечается.
+   *
+   * Undefined означает «выбора нет вовсе» — тогда галочка не рисуется
+   * и место под неё не резервируется. Именно undefined, а не false:
+   * false это «выбор идёт, но эта строка не отмечена».
+   */
+  selected?: boolean;
+  onLongPress?: (track: Track) => void;
   onMenu?: (track: Track) => void;
   /**
    * Смахивание. Выключается там, где оно мешает: в очереди строку тянут
@@ -42,6 +51,8 @@ export const TrackRow = memo(function TrackRow({
   index,
   onPress,
   onMenu,
+  selected,
+  onLongPress,
   swipeable = true,
 }: TrackRowProps) {
   const theme = useTheme();
@@ -52,10 +63,11 @@ export const TrackRow = memo(function TrackRow({
 
 
   const handlePress = useCallback(() => onPress(index), [onPress, index]);
+  const handleLongPress = useCallback(() => onLongPress?.(track), [onLongPress, track]);
   const handleMenu = useCallback(() => onMenu?.(track), [onMenu, track]);
 
   const handleLike = useCallback(() => {
-    toggleLike(trackKey(track));
+    toggleLike(track);
     tapMedium();
   }, [track]);
 
@@ -67,9 +79,19 @@ export const TrackRow = memo(function TrackRow({
   const row = (
     <Pressable
       onPress={handlePress}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+      onLongPress={onLongPress ? handleLongPress : undefined}
+      delayLongPress={350}
+      style={({ pressed }) => [styles.row, pressed && styles.pressed, selected && styles.selected]}
       android_ripple={{ color: 'rgba(128,128,128,0.16)' }}
     >
+      {selected !== undefined ? (
+        <MaterialIcons
+          name={selected ? 'check-circle' : 'radio-button-unchecked'}
+          size={20}
+          color={selected ? theme.colors.brand : theme.colors.textFaint}
+        />
+      ) : null}
+
       <Thumb track={track} size={theme.layout.rowThumb} />
 
       {/* Форма, а не только цвет: красный в теме означает и «играет»,
@@ -104,7 +126,9 @@ export const TrackRow = memo(function TrackRow({
     </Pressable>
   );
 
-  if (!swipeable) return row;
+  // В режиме выбора смахивание выключено: жест конфликтует с отметкой,
+  // и лайк посреди набора списка — точно не то, чего ждут.
+  if (!swipeable || selected !== undefined) return row;
 
   return (
     <SwipeableRow
@@ -132,6 +156,7 @@ const makeStyles = (t: Theme) =>
       gap: t.spacing.md,
     },
     pressed: { backgroundColor: t.colors.surface },
+    selected: { backgroundColor: t.colors.surfaceHigh },
     text: { flex: 1, gap: 2 },
     title: { ...t.type.trackTitle, color: t.colors.text },
     activeTitle: { color: t.colors.brand },

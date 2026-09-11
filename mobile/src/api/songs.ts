@@ -62,6 +62,26 @@ export function getYouTubeStream(
   return request(`/songs/youtube/stream/${encodeURIComponent(videoId)}`, { signal });
 }
 
+/**
+ * Лайки на сервере.
+ *
+ * Идемпотентны: повторный запрос не ошибка и счётчик не двигает —
+ * так решено на бэкенде, и это удобно, потому что клиент дублирует
+ * запросы при сведении списков после входа.
+ */
+export function addLike(songId: string, signal?: AbortSignal): Promise<unknown> {
+  return request(`/songs/${songId}/like`, { method: 'POST', signal });
+}
+
+export function removeLike(songId: string, signal?: AbortSignal): Promise<unknown> {
+  return request(`/songs/${songId}/like`, { method: 'DELETE', signal });
+}
+
+/** Понравившиеся текущего пользователя. Требует входа. */
+export function listLiked(signal?: AbortSignal): Promise<SongResponse[]> {
+  return request<SongResponse[]>('/songs/liked', { signal });
+}
+
 export function deleteSong(songId: string, signal?: AbortSignal): Promise<void> {
   return request<void>(`/songs/${songId}`, { method: 'DELETE', signal });
 }

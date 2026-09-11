@@ -1,6 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Pressable,
   StyleSheet,
@@ -9,39 +8,21 @@ import {
   View,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
+import { useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { TrackRow } from '../../src/ui/components/TrackRow';
 import { EmptyState, ErrorState, TrackListSkeleton } from '../../src/ui/components/states';
 import { useTheme, useThemedStyles, type Theme } from '../../src/ui/theme';
 import { useLibrary, useYouTubeSearch } from '../../src/features/useLibrary';
+import { useIsSignedIn } from '../../src/auth/session';
 import { useDebounced } from '../../src/features/useDebounced';
 import { usePlayback } from '../../src/player/usePlayback';
-import { importTrack, type ImportProgress } from '../../src/features/importTrack';
+import { enqueue, setImportListener } from '../../src/features/importQueue';
+import { ImportPanel } from '../../src/ui/components/ImportPanel';
 import type { Track } from '../../src/api/types';
 
-/**
- * Что показывать на каждой стадии. Трек качается на телефон и оттуда же
- * уходит в хранилище, поэтому стадий четыре, а не одна.
- */
-const STAGE_LABEL: Record<ImportProgress['stage'], string> = {
-  extract: 'Ищем аудиодорожку…',
-  download: 'Качаем трек на телефон…',
-  upload: 'Загружаем в медиатеку…',
-  save: 'Сохраняем…',
-};
-
-/**
- * Поиск по YouTube.
- *
- * Только по ютубу: поиск по своей медиатеке живёт на вкладке «Медиатека»,
- * рядом с самой медиатекой, и второй такой же здесь был лишним выбором
- * на каждом открытии экрана.
- *
- * Ввод дебаунсится, предыдущий запрос отменяется — иначе при быстром наборе
- * результаты «прыгают», как это происходит в вебе.
- */
 /** Вынесен из компонента: иначе новая функция на каждый рендер. */
 const keyExtractor = (item: Track) => item.id;
 
@@ -53,34 +34,36 @@ export default function ExploreScreen() {
   const debouncedQuery = useDebounced(query, 400);
 
   const { tracks: library, isDemo } = useLibrary();
+  const signedIn = useIsSignedIn();
+  const router = useRouter();
   const { play } = usePlayback();
   const queryClient = useQueryClient();
 
   const youtube = useYouTubeSearch(debouncedQuery, !isDemo);
   const results = youtube.tracks;
 
-  // Стадия импорта — чтобы полоска говорила, что именно происходит:
-  // операция идёт секунды, и одинаковый текст всё это время выглядит
-  // как зависание.
-  const [stage, setStage] = useState<ImportProgress['stage'] | null>(null);
+  /**
+   * Выбранные треки.
+   *
+   * null означает «режим выбора выключен» — в нём нажатие играет, как
+   * и раньше. Режим включается долгим нажатием: отдельная кнопка
+   * «выбрать» занимала бы место ради действия, которое нужно изредка.
+   */
+  const [selected, setSelected] = useState<Set<string> | null>(null);
 
-  const importSong = useMutation({
-    mutationFn: (track: Track) => importTrack(track, (progress) => setStage(progress.stage)),
-    onSuccess: () => {
-      // Медиатека изменилась — сбрасываем её кэш, чтобы новый трек появился.
+  // Когда трек добавился, медиатека изменилась — сбрасываем её кэш,
+  // иначе новый трек не появится до ручного обновления.
+  useEffect(() => {
+    setImportListener(() => {
       void queryClient.invalidateQueries({ queryKey: ['songs'] });
-      Alert.alert('Готово', 'Трек добавлен в медиатеку');
-    },
-    onError: (error: Error) => Alert.alert('Не удалось добавить', error.message),
-    onSettled: () => setStage(null),
-  });
+    });
+    return () => setImportListener(null);
+  }, [queryClient]);
 
   // Список результатов — в ref: иначе новый handlePress на каждую выдачу
   // поиска пересоздаёт renderItem и перерисовывает весь список целиком.
   const resultsRef = useRef(results);
   resultsRef.current = results;
-
-  const handlePress = useCallback((index: number) => play(resultsRef.current, index), [play]);
 
   // Что уже есть в медиатеке — по идентификаторам ютуба.
   //
@@ -91,6 +74,69 @@ export default function ExploreScreen() {
     () => new Set(library.map((item) => item.youtubeId).filter(Boolean) as string[]),
     [library],
   );
+
+  const toggleSelected = useCallback((id: string) => {
+    setSelected((current) => {
+      const next = new Set(current ?? []);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handlePress = useCallback(
+    (index: number) => {
+      const track = resultsRef.current[index];
+      if (!track) return;
+      // В режиме выбора нажатие отмечает, а не играет.
+      if (selected !== null) toggleSelected(track.id);
+      else play(resultsRef.current, index);
+    },
+    [play, selected, toggleSelected],
+  );
+
+  const handleLongPress = useCallback(
+    (track: Track) => {
+      if (track.source !== 'youtube') return;
+      setSelected((current) => new Set(current ?? []).add(track.id));
+    },
+    [],
+  );
+
+  /**
+   * Проверка входа перед добавлением.
+   *
+   * Ручки заливки требуют авторизации, и без неё импорт всё равно
+   * сорвётся — но сорвётся поздно: телефон успеет скачать по несколько
+   * мегабайт на трек, и только потом получит отказ. Хуже того, клиент
+   * трактует 401 как потерю сессии и уводит на экран входа, то есть
+   * человек, просто листавший поиск, внезапно оказывается в форме логина.
+   *
+   * Проверяем заранее и предлагаем войти, не тратя ни байта.
+   */
+  const requireSignIn = useCallback((): boolean => {
+    if (signedIn) return true;
+    Alert.alert(
+      'Нужен вход',
+      'Треки добавляются в медиатеку на сервере — для этого нужен аккаунт.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { text: 'Войти', onPress: () => router.push('/(auth)/login') },
+      ],
+    );
+    return false;
+  }, [signedIn, router]);
+
+  /** Отправить выбранное в очередь. Уже добавленное молча пропускается. */
+  const addSelected = useCallback(() => {
+    if (!selected) return;
+    if (!requireSignIn()) return;
+    const tracks = resultsRef.current.filter(
+      (track) => selected.has(track.id) && !importedIds.has(track.youtubeId ?? ''),
+    );
+    enqueue(tracks);
+    setSelected(null);
+  }, [selected, importedIds, requireSignIn]);
 
   const handleMenu = useCallback(
     (track: Track) => {
@@ -105,11 +151,13 @@ export default function ExploreScreen() {
         { text: 'Отмена', style: 'cancel' },
         {
           text: 'Добавить',
-          onPress: () => importSong.mutate(track),
+          onPress: () => {
+            if (requireSignIn()) enqueue([track]);
+          },
         },
       ]);
     },
-    [importSong, importedIds],
+    [importedIds, requireSignIn],
   );
 
   const renderItem = useCallback(
@@ -118,10 +166,12 @@ export default function ExploreScreen() {
         track={item}
         index={index}
         onPress={handlePress}
-        onMenu={item.source === 'youtube' ? handleMenu : undefined}
+        onMenu={selected === null && item.source === 'youtube' ? handleMenu : undefined}
+        selected={selected === null ? undefined : selected.has(item.id)}
+        onLongPress={item.source === 'youtube' ? handleLongPress : undefined}
       />
     ),
-    [handlePress, handleMenu],
+    [handlePress, handleMenu, handleLongPress, selected],
   );
 
   const listContent = useMemo(
@@ -151,12 +201,23 @@ export default function ExploreScreen() {
       </View>
 
 
-      {importSong.isPending ? (
-        <View style={styles.importBar}>
-          <ActivityIndicator color={theme.colors.text} size="small" />
-          <Text style={styles.importText}>{STAGE_LABEL[stage ?? 'extract']}</Text>
+      {selected !== null ? (
+        <View style={styles.selectBar}>
+          <Pressable onPress={() => setSelected(null)} hitSlop={10}>
+            <MaterialIcons name="close" size={22} color={theme.colors.text} />
+          </Pressable>
+          <Text style={styles.selectCount}>Выбрано {selected.size}</Text>
+          <Pressable
+            onPress={addSelected}
+            disabled={selected.size === 0}
+            style={[styles.addButton, selected.size === 0 && styles.addDisabled]}
+          >
+            <Text style={styles.addLabel}>Добавить</Text>
+          </Pressable>
         </View>
       ) : null}
+
+      <ImportPanel />
 
       <Body
         query={debouncedQuery}
@@ -241,6 +302,26 @@ const makeStyles = (t: Theme) =>
       borderRadius: t.radius.chip,
     },
     input: { flex: 1, color: t.colors.text, fontSize: t.type.body.fontSize + 1, padding: 0 },
+    selectBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: t.spacing.md,
+      marginHorizontal: t.layout.screenPadding,
+      marginBottom: t.spacing.sm,
+      paddingHorizontal: t.spacing.md,
+      paddingVertical: t.spacing.sm,
+      borderRadius: t.radius.chip,
+      backgroundColor: t.colors.surfaceHigh,
+    },
+    selectCount: { ...t.type.body, color: t.colors.text, flex: 1 },
+    addButton: {
+      paddingHorizontal: t.spacing.lg,
+      paddingVertical: t.spacing.xs,
+      borderRadius: t.radius.chip,
+      backgroundColor: t.colors.accent,
+    },
+    addDisabled: { opacity: 0.4 },
+    addLabel: { ...t.type.meta, fontWeight: '600', color: t.colors.onAccent },
     importBar: {
       flexDirection: 'row',
       alignItems: 'center',

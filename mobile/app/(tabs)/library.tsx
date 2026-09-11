@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
@@ -12,7 +12,8 @@ import { AddToPlaylistSheet } from '../../src/ui/components/AddToPlaylistSheet';
 import { EmptyState, ErrorState, TrackListSkeleton } from '../../src/ui/components/states';
 import { useTheme, useThemedStyles, type Theme } from '../../src/ui/theme';
 import { useLibrary, useLibraryFilter } from '../../src/features/useLibrary';
-import { useLikedIds, toggleLike } from '../../src/local/likes';
+import { useLikedIds, toggleLike, syncLikes } from '../../src/local/likes';
+import { useIsSignedIn } from '../../src/auth/session';
 import { deleteSong } from '../../src/api/songs';
 import { useCachedKeys } from '../../src/local/audioCache';
 import { trackKey } from '../../src/api/types';
@@ -46,7 +47,30 @@ export default function LibraryScreen() {
     isRefetching,
   } = useLibrary();
 
+  const signedIn = useIsSignedIn();
   const likedIds = useLikedIds();
+
+  /**
+   * Сведение лайков с сервером.
+   *
+   * Здесь, а не в корневом layout, потому что для сопоставления нужна
+   * медиатека: серверный лайк ссылается на запись песни, а локальный
+   * ключ — это youtubeId. Медиатека уже загружена именно на этом экране.
+   *
+   * Один раз за вход: список меняется редко, а гонять сверку на каждое
+   * появление экрана незачем.
+   */
+  const syncedRef = useRef(false);
+
+  useEffect(() => {
+    if (!signedIn || tracks.length === 0 || syncedRef.current) return;
+    syncedRef.current = true;
+    void syncLikes(tracks);
+  }, [signedIn, tracks]);
+
+  useEffect(() => {
+    if (!signedIn) syncedRef.current = false;
+  }, [signedIn]);
   const cachedKeys = useCachedKeys();
 
   // Лайки в ref: меню читает их в момент нажатия, а зависимость от массива
@@ -125,7 +149,7 @@ export default function LibraryScreen() {
       {
         label: liked ? 'Убрать из понравившихся' : 'Нравится',
         icon: liked ? 'heart-broken' : 'favorite',
-        onPress: () => toggleLike(key),
+        onPress: () => toggleLike(menuTrack),
       },
     ];
 
