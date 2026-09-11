@@ -1,12 +1,12 @@
 import { memo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useProgress } from 'react-native-track-player';
 import { Thumb } from './Thumb';
 import { useTheme, useThemedStyles, type Theme } from '../theme';
-import { useCurrentTrack } from '../../player/queueStore';
+import { useCurrentTrack, useQueue } from '../../player/queueStore';
 import { usePlayback } from '../../player/usePlayback';
 
 /**
@@ -32,6 +32,13 @@ export const MiniPlayer = memo(function MiniPlayer({ standalone = false }: MiniP
   const styles = useThemedStyles(makeStyles);
   const { isPlaying, isBuffering, toggle, next } = usePlayback();
 
+  // Состояние загрузки и ошибку берём точечными селекторами: очередь целиком
+  // мини-плееру не нужна, а подписка на неё перерисовывала бы плашку на
+  // каждое добавление трека.
+  const isLoading = useQueue((state) => state.isLoading);
+  const error = useQueue((state) => state.error);
+  const retry = useQueue((state) => state.retryCurrent);
+
   if (!track) return null;
 
   return (
@@ -49,18 +56,34 @@ export const MiniPlayer = memo(function MiniPlayer({ standalone = false }: MiniP
           <Text numberOfLines={1} style={styles.title}>
             {track.title}
           </Text>
-          <Text numberOfLines={1} style={styles.meta}>
-            {track.author}
+          {/*
+            Вторая строка — это и есть ответ на вопрос «почему не играет».
+            Раньше причина записывалась в очередь и нигде не показывалась:
+            трек подсвечивался как текущий, а звука не было, и понять,
+            ждать или нажимать ещё раз, было не по чему.
+          */}
+          <Text numberOfLines={1} style={error ? styles.metaError : styles.meta}>
+            {error ?? (isLoading ? 'Загрузка…' : track.author)}
           </Text>
         </View>
 
-        <Pressable onPress={toggle} hitSlop={10} style={styles.control}>
-          <MaterialIcons
-            name={isBuffering ? 'hourglass-empty' : isPlaying ? 'pause' : 'play-arrow'}
-            size={26}
-            color={theme.colors.text}
-          />
-        </Pressable>
+        {error ? (
+          <Pressable onPress={() => void retry()} hitSlop={10} style={styles.control}>
+            <MaterialIcons name="refresh" size={26} color={theme.colors.danger} />
+          </Pressable>
+        ) : isLoading ? (
+          <View style={styles.control}>
+            <ActivityIndicator size="small" color={theme.colors.text} />
+          </View>
+        ) : (
+          <Pressable onPress={toggle} hitSlop={10} style={styles.control}>
+            <MaterialIcons
+              name={isBuffering ? 'hourglass-empty' : isPlaying ? 'pause' : 'play-arrow'}
+              size={26}
+              color={theme.colors.text}
+            />
+          </Pressable>
+        )}
 
         <Pressable onPress={() => void next()} hitSlop={10} style={styles.control}>
           <MaterialIcons name="skip-next" size={26} color={theme.colors.text} />
@@ -131,5 +154,6 @@ const makeStyles = (t: Theme) =>
     text: { flex: 1, gap: 1 },
     title: { ...t.type.trackTitle, color: t.colors.text },
     meta: { ...t.type.meta, color: t.colors.textDim },
+    metaError: { ...t.type.meta, color: t.colors.danger },
     control: { width: 40, alignItems: 'center', justifyContent: 'center' },
   });

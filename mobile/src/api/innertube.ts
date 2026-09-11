@@ -41,6 +41,48 @@ const USER_AGENT =
 export const INNERTUBE_USER_AGENT = USER_AGENT;
 
 /**
+ * Таймаут на запрос.
+ *
+ * У fetch в React Native таймаута нет: XMLHttpRequest.timeout по умолчанию 0,
+ * и это значение уходит в нативный слой как «ждать сколько угодно». На столе
+ * это незаметно, а на телефоне сокет протухает при каждой смене сети — и
+ * запрос к ютубу повисает навсегда. Дальше по цепочке это выглядело так:
+ * нажатие на трек ничего не делает, потому что loadCurrent() стоит на
+ * `await resolveStreamUrl()`, который уже не вернётся. Хуже того, склейка
+ * одновременных запросов метки (pending ниже) раздавала этот же зависший
+ * промис всем следующим трекам, и воспроизведение умирало до перезапуска.
+ *
+ * Поэтому у каждого запроса к ютубу есть предел. Упавший запрос честно
+ * бросает исключение, а вызывающий код уже умеет откатываться на бэкенд
+ * и показывать ошибку.
+ */
+const REQUEST_TIMEOUT_MS = 10_000;
+/** Главная страница — под мегабайт, ей нужно больше. */
+const PAGE_TIMEOUT_MS = 15_000;
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    // AbortError от нашего же таймера превращаем в понятное сообщение:
+    // иначе в интерфейс уходит «Aborted» без всякого смысла.
+    if (controller.signal.aborted) {
+      throw new Error(`YouTube не ответил за ${Math.round(timeoutMs / 1000)} с`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+
+/**
  * Откуда берём метку.
  *
  * sw.js_data — служебный ответ для service worker, около трёх килобайт.
@@ -68,7 +110,9 @@ function findVisitorToken(node: unknown): string | null {
 }
 
 async function fromServiceWorkerData(): Promise<string | null> {
-  const response = await fetch(SW_DATA, { headers: { 'User-Agent': USER_AGENT } });
+  const response = await fetchWithTimeout(SW_DATA, {
+    headers: { 'User-Agent': USER_AGENT },
+  });
   const text = await response.text();
 
   // Ответ начинается с защитного префикса )]}' — JSON идёт со второй строки.
@@ -82,9 +126,11 @@ async function fromServiceWorkerData(): Promise<string | null> {
 }
 
 async function fromHomePage(): Promise<string> {
-  const response = await fetch('https://www.youtube.com/', {
-    headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'en-US,en;q=0.9' },
-  });
+  const response = await fetchWithTimeout(
+    'https://www.youtube.com/',
+    { headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'en-US,en;q=0.9' } },
+    PAGE_TIMEOUT_MS,
+  );
   const html = await response.text();
   const match = html.match(/"visitorData":"([^"]+)"/);
   if (!match) throw new Error('YouTube не отдал visitorData');
@@ -148,28 +194,31 @@ export async function innertube<T = unknown>(
   body: Record<string, unknown>,
   visitor: string,
 ): Promise<T> {
-  const response = await fetch(`https://${client.host}/youtubei/v1/${endpoint}?prettyPrint=false`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': USER_AGENT,
-      'X-Youtube-Client-Name': client.id,
-      'X-Youtube-Client-Version': client.version,
-      'X-Goog-Visitor-Id': visitor,
-      Origin: `https://${client.host}`,
-    },
-    body: JSON.stringify({
-      context: {
-        client: {
-          clientName: client.name,
-          clientVersion: client.version,
-          visitorData: visitor,
-          ...client.extra,
-        },
+  const response = await fetchWithTimeout(
+    `https://${client.host}/youtubei/v1/${endpoint}?prettyPrint=false`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': USER_AGENT,
+        'X-Youtube-Client-Name': client.id,
+        'X-Youtube-Client-Version': client.version,
+        'X-Goog-Visitor-Id': visitor,
+        Origin: `https://${client.host}`,
       },
-      ...body,
-    }),
-  });
+      body: JSON.stringify({
+        context: {
+          client: {
+            clientName: client.name,
+            clientVersion: client.version,
+            visitorData: visitor,
+            ...client.extra,
+          },
+        },
+        ...body,
+      }),
+    },
+  );
 
   if (!response.ok) throw new Error(`YouTube ответил ${response.status}`);
   return (await response.json()) as T;

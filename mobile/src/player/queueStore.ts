@@ -34,6 +34,21 @@ export type RepeatMode = 'off' | 'all' | 'one';
  */
 const LOOKAHEAD = 4;
 
+/**
+ * Номер поколения загрузки.
+ *
+ * Заряжание трека — это несколько запросов подряд: ссылка (полторы секунды
+ * у ютуба), reset(), add(), play(), потом прогрев следующих. Всё это время
+ * пользователь может нажать на другой трек — и тогда в движок начинают
+ * ходить сразу две загрузки. Побеждала не последняя, а та, чей await
+ * вернулся позже: старый прогрев успевал добавить свои треки уже после
+ * reset(), и play() запускал не то, на что нажали.
+ *
+ * Поэтому каждая загрузка берёт номер, и перед любым обращением к движку
+ * проверяет, что он всё ещё последний. Опоздавшая загрузка тихо уходит.
+ */
+let loadGeneration = 0;
+
 const PERSIST_KEY = 'queue.v1';
 /** Позиция лежит отдельно: она пишется каждые несколько секунд, очередь — редко. */
 const POSITION_KEY = 'queue.position.v1';
@@ -72,6 +87,8 @@ interface QueueActions {
   syncFromPlayer: (activeTrackId: string) => void;
   /** Восстановление ссылки после ошибки воспроизведения. */
   recoverFromError: () => Promise<void>;
+  /** Повторить загрузку текущего трека вручную — после показанной ошибки. */
+  retryCurrent: () => Promise<void>;
   restore: () => void;
 }
 
@@ -106,9 +123,13 @@ export const useQueue = create<QueueState & QueueActions>((set, get) => ({
     // просто переключаемся — переход мгновенный, без сетевого запроса.
     // Полная перезарядка через loadCurrent() сбросила бы весь прогрев.
     if (await skipWithinPlayer(queue[nextIndex]?.id)) {
+      // Переключение внутри движка меняет играющий трек мимо loadCurrent(),
+      // поэтому номер поколения двигаем вручную: загрузка, начатая до этого,
+      // уже неактуальна и не должна довести свой reset() до конца.
+      const generation = ++loadGeneration;
       set({ index: nextIndex });
       persist();
-      await refillLookahead(get());
+      await refillLookahead(get(), generation);
       return;
     }
 
@@ -165,7 +186,7 @@ export const useQueue = create<QueueState & QueueActions>((set, get) => ({
     }
 
     persist();
-    await refillLookahead(get());
+    await refillLookahead(get(), loadGeneration);
   },
 
   cycleRepeat: async () => {
@@ -210,8 +231,13 @@ export const useQueue = create<QueueState & QueueActions>((set, get) => ({
   },
 
   syncFromPlayer: (activeTrackId) => {
-    const { queue, index } = get();
+    const { queue, index, isLoading } = get();
     if (queue[index]?.id === activeTrackId) return;
+
+    // Пока заряжается новый трек, движок ещё отчитывается о старом: reset()
+    // и add() идут не мгновенно. Слушать эти отчёты нельзя — индекс уехал бы
+    // обратно на предыдущий трек, и нажатие выглядело бы как не сработавшее.
+    if (isLoading) return;
 
     const found = queue.findIndex((track) => track.id === activeTrackId);
     if (found >= 0) {
@@ -226,17 +252,31 @@ export const useQueue = create<QueueState & QueueActions>((set, get) => ({
         beginPlay(track);
       }
       persist();
-      void refillLookahead(get());
+      void refillLookahead(get(), loadGeneration);
     }
   },
 
   recoverFromError: async () => {
+    const generation = loadGeneration;
     const { queue, index } = get();
     const track = queue[index];
     if (!track) return;
 
+    // Ошибка могла прилететь от трека, который уже сняли с воспроизведения:
+    // reset() в новой загрузке роняет то, что играло до него. Восстанавливать
+    // тут нечего — новый трек заряжается сам, а вмешательство отняло бы у него
+    // движок. Поэтому чиним, только если в движке всё ещё тот трек, что и в
+    // очереди.
+    const active = await TrackPlayer.getActiveTrack().catch(() => undefined);
+    if (!active || String(active.id) !== track.id) return;
+    if (generation !== loadGeneration) return;
+
     // Самая частая причина — истёкшая presigned-ссылка. Берём свежую
     // и продолжаем с той же секунды, чтобы пользователь ничего не заметил.
+    // Позицию читаем только здесь, убедившись, что она принадлежит этому
+    // треку: иначе новый трек перематывался бы на секунду предыдущего —
+    // а если предыдущий был длиннее, то сразу за свой конец, и выглядело
+    // это как «трек не включается».
     const position = await TrackPlayer.getProgress()
       .then((p) => p.position)
       .catch(() => 0);
@@ -244,13 +284,28 @@ export const useQueue = create<QueueState & QueueActions>((set, get) => ({
     invalidateStreamUrl(track.id);
     try {
       const url = await resolveStreamUrl(track, true);
+      if (generation !== loadGeneration) return;
       await TrackPlayer.load(toPlayerTrack(track, url));
-      if (position > 0) await TrackPlayer.seekTo(position);
+      // Дальше конца не перематываем: длительность у нового потока может
+      // оказаться меньше, чем накрутила позиция.
+      const safePosition = track.duration > 0 ? Math.min(position, track.duration - 1) : position;
+      if (safePosition > 0) await TrackPlayer.seekTo(safePosition);
       await TrackPlayer.play();
       set({ error: null });
     } catch {
+      if (generation !== loadGeneration) return;
       set({ error: 'Не удалось возобновить воспроизведение' });
     }
+  },
+
+  retryCurrent: async () => {
+    const { queue, index } = get();
+    if (!queue[index]) return;
+
+    // Ссылку берём заново в любом случае. Повторять с той же — значит
+    // повторить ту же ошибку: она могла и протухнуть, и просто не дойти.
+    invalidateStreamUrl(queue[index].id);
+    await loadCurrent(get, set, 0);
   },
 
   restore: () => {
@@ -278,13 +333,17 @@ async function loadCurrent(
   const track = state.queue[state.index];
   if (!track) return;
 
+  const generation = ++loadGeneration;
   set({ isLoading: true, error: null });
 
   try {
     const url = await resolveStreamUrl(track);
+    // Пока ходили за ссылкой, могли нажать на другой трек.
+    if (generation !== loadGeneration) return;
 
     await TrackPlayer.reset();
     await TrackPlayer.add([toPlayerTrack(track, url)]);
+    if (generation !== loadGeneration) return;
     if (startPosition > 0) await TrackPlayer.seekTo(startPosition);
     if (autoplay) await TrackPlayer.play();
 
@@ -307,8 +366,11 @@ async function loadCurrent(
     set({ isLoading: false });
     persist();
 
-    await refillLookahead(get());
+    await refillLookahead(get(), generation);
   } catch (error) {
+    // Ошибку показываем только от актуальной загрузки: опоздавшая не должна
+    // подменять собой то, что уже играет.
+    if (generation !== loadGeneration) return;
     set({
       isLoading: false,
       error: error instanceof Error ? error.message : 'Не удалось начать воспроизведение',
@@ -320,7 +382,7 @@ async function loadCurrent(
  * Держит в движке ближайшие следующие треки — чтобы переход был мгновенным,
  * без паузы на сетевой запрос ссылки.
  */
-async function refillLookahead(state: QueueState): Promise<void> {
+async function refillLookahead(state: QueueState, generation: number): Promise<void> {
   const upcoming = state.queue.slice(state.index + 1, state.index + 1 + LOOKAHEAD);
   if (upcoming.length === 0) return;
 
@@ -349,10 +411,15 @@ async function refillLookahead(state: QueueState): Promise<void> {
     }),
   );
 
+  // Ссылки шли по сети несколько секунд. Если за это время началась новая
+  // загрузка, она уже сделала reset() — и наши треки легли бы поверх неё.
+  if (generation !== loadGeneration) return;
+
   // Добавляем строго по порядку: движок играет очередь так, как её сложили,
   // и параллельное добавление перемешало бы треки.
   for (const item of resolved) {
     if (!item) break;
+    if (generation !== loadGeneration) return;
     try {
       await TrackPlayer.add([toPlayerTrack(item.track, item.url)]);
     } catch {
