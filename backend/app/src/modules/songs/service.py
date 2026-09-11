@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
 from src.integrations.redis.client import get_redis_client
-from src.core.exceptions import NotFoundError,BadRequestError
+from src.core.exceptions import ConflictError, NotFoundError, BadRequestError
 from src.core.pagination import decode_cursor, encode_cursor
 from src.integrations.s3 import (
     generate_presigned_get,
@@ -249,6 +249,26 @@ class SongService:
 
 
     async def create_song(self, session: AsyncSession, song_in: SongCreate):
+        """Завести песню в медиатеке.
+
+        Повторный импорт отсекается здесь, а не в базе. Раньше отсекала
+        она — youtube_id помечен unique, и на дубле поднимался
+        IntegrityError, доезжавший до клиента как «Internal Server Error».
+        Пользователь при этом видел ровно то, что видеть не должен:
+        обычная ситуация «трек уже добавлен» выглядела как поломка сервера.
+
+        Проверка до вставки стоит одного запроса и превращает это
+        в осмысленный 409.
+        """
+        if song_in.youtube_id:
+            existing = await self.repo.get_by_youtube_id(
+                session, youtube_id=song_in.youtube_id
+            )
+            if existing is not None:
+                raise ConflictError(
+                    f'Трек «{existing.title}» уже есть в медиатеке'
+                )
+
         return await self.repo.create(session=session, obj_in=song_in)
 
     async def search_library(

@@ -23,9 +23,6 @@ class Settings(BaseSettings):
     VERIFICATION_CODE_EXPIRE_SECONDS: int = 60 * 10
     PASSWORD_RESET_TOKEN_EXPIRE_SECONDS: int = 60 * 10
 
-    # Файл авторизации YouTube Music (ytmusicapi browser).
-    # Без него доступен только открытый поиск, личная библиотека — нет.
-
     # --- Доступ к YouTube ---
     # Файл cookies в формате Netscape. Нужен, когда YouTube требует
     # подтверждения «я не робот» — так бывает с IP дата-центров.

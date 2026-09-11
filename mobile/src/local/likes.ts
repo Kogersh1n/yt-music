@@ -34,10 +34,6 @@ export function toggleLike(songId: string): void {
   commit();
 }
 
-export function isLiked(songId: string): boolean {
-  return liked.has(songId);
-}
-
 /** Все лайки. Порядок — как добавляли. */
 export function useLikedIds(): readonly string[] {
   return useSyncExternalStore(subscribe, () => snapshot);

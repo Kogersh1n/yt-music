@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Chip } from '../../src/ui/components/Chip';
@@ -9,6 +10,7 @@ import { EmptyState, ErrorState, TrackListSkeleton } from '../../src/ui/componen
 import { useTheme, useThemedStyles, type Theme } from '../../src/ui/theme';
 import { useLibrary, useLibraryFilter } from '../../src/features/useLibrary';
 import { useLikedIds, toggleLike } from '../../src/local/likes';
+import { deleteSong } from '../../src/api/songs';
 import { useCachedKeys } from '../../src/local/audioCache';
 import { trackKey } from '../../src/api/types';
 import { usePlayback } from '../../src/player/usePlayback';
@@ -43,7 +45,25 @@ export default function LibraryScreen() {
 
   const likedIds = useLikedIds();
   const cachedKeys = useCachedKeys();
+
+  // Лайки в ref: меню читает их в момент нажатия, а зависимость от массива
+  // пересоздавала бы обработчик и с ним весь renderItem списка.
+  const likedIdsRef = useRef(new Set(likedIds));
+  likedIdsRef.current = new Set(likedIds);
+  const queryClient = useQueryClient();
   const { play } = usePlayback();
+
+  const removeSong = useMutation({
+    mutationFn: (songId: string) => deleteSong(songId),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['songs'] }),
+    onError: (error: Error) =>
+      Alert.alert(
+        'Не удалось удалить',
+        // Удаление требует входа — иначе сервер отвечает 401, и без
+        // пояснения это выглядит как сбой.
+        error.message.includes('401') ? 'Войдите в аккаунт, чтобы удалять треки.' : error.message,
+      ),
+  });
 
   /**
    * Фильтр «Понравившиеся» работает по локальным лайкам.
@@ -81,7 +101,48 @@ export default function LibraryScreen() {
 
   const handlePress = useCallback((index: number) => play(visibleRef.current, index), [play]);
 
-  const handleMenu = useCallback((track: Track) => toggleLike(trackKey(track)), []);
+  /**
+   * Меню трека.
+   *
+   * Раньше «⋮» молча переключала лайк — то есть кнопка с многоточием,
+   * которая обычно открывает выбор, делала одно действие без спроса.
+   * Теперь это настоящий выбор, и в нём наконец есть удаление: ручка
+   * DELETE /songs/{id} была написана, а дотянуться до неё из приложения
+   * было нечем.
+   */
+  const handleMenu = useCallback(
+    (track: Track) => {
+      const liked = likedIdsRef.current.has(trackKey(track));
+
+      Alert.alert(track.title, track.author, [
+        {
+          text: liked ? 'Убрать из понравившихся' : 'Нравится',
+          onPress: () => toggleLike(trackKey(track)),
+        },
+        // Удалять можно только то, что лежит в медиатеке: у треков,
+        // которые играют по ссылке, удалять на сервере нечего.
+        ...(track.source === 'library'
+          ? [
+              {
+                text: 'Удалить из медиатеки',
+                style: 'destructive' as const,
+                onPress: () =>
+                  Alert.alert('Удалить трек?', 'Файл и запись исчезнут безвозвратно.', [
+                    { text: 'Отмена', style: 'cancel' as const },
+                    {
+                      text: 'Удалить',
+                      style: 'destructive' as const,
+                      onPress: () => removeSong.mutate(track.id),
+                    },
+                  ]),
+              },
+            ]
+          : []),
+        { text: 'Отмена', style: 'cancel' as const },
+      ]);
+    },
+    [removeSong],
+  );
 
   const renderItem = useCallback(
     ({ item, index }: { item: Track; index: number }) => (

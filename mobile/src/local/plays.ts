@@ -17,8 +17,6 @@ import { trackKey, type Track } from '../api/types';
 
 const EVENTS_KEY = 'plays.v1';
 const CURRENT_KEY = 'plays.current.v1';
-/** Отметка последнего отправленного на сервер события. */
-const SYNCED_KEY = 'plays.synced.v1';
 
 /** Сколько событий помним. Тысяча в месяц по сотне байт — мегабайт в год. */
 const LIMIT = 20000;
@@ -53,7 +51,6 @@ interface OpenPlay {
 
 let events: PlayEvent[] = readJSON<PlayEvent[]>(EVENTS_KEY, []);
 let current: OpenPlay | null = readJSON<OpenPlay | null>(CURRENT_KEY, null);
-let syncedUpTo: number = readJSON<number>(SYNCED_KEY, 0);
 
 const listeners = new Set<() => void>();
 let snapshot: readonly PlayEvent[] = Object.freeze([...events]);
@@ -172,10 +169,6 @@ export function endPlay(): void {
   flush();
 }
 
-export function getEvents(): readonly PlayEvent[] {
-  return snapshot;
-}
-
 /** События за период. Полуинтервал: from включительно, to нет. */
 export function eventsBetween(from: number, to: number): PlayEvent[] {
   return events.filter((e) => e.startedAt >= from && e.startedAt < to);
@@ -189,41 +182,11 @@ export function usePlayEvents(): readonly PlayEvent[] {
 /* Отправка на сервер                                                  */
 /* ------------------------------------------------------------------ */
 
-/**
- * События, которые ещё не ушли на сервер.
- *
- * Отсечка по времени начала, а не по флагу на каждом событии: журнал
- * пополняется строго по возрастанию startedAt, поэтому одной метки
- * достаточно и её не нужно обновлять в каждой записи.
- */
-export function unsyncedEvents(): PlayEvent[] {
-  return events.filter((e) => e.startedAt > syncedUpTo);
-}
-
-/**
- * Сдвинуть отметку после успешной отправки.
- *
- * Локальные события при этом НЕ удаляются: рекап считается на устройстве
- * и должен открываться офлайн. Сервер здесь — резервная копия, а не
- * единственное место хранения.
- */
-export function markSynced(upTo: number): void {
-  if (upTo <= syncedUpTo) return;
-  syncedUpTo = upTo;
-  writeJSON(SYNCED_KEY, upTo);
-}
-
-export function getSyncedUpTo(): number {
-  return syncedUpTo;
-}
-
 /** Полная очистка журнала — рядом с кнопкой сброса статистики. */
 export function resetPlays(): void {
   events = [];
   current = null;
-  syncedUpTo = 0;
   writeJSON(CURRENT_KEY, null);
-  writeJSON(SYNCED_KEY, 0);
   commit();
   flush();
 }

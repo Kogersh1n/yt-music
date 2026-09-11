@@ -1,6 +1,7 @@
 import { memo, useCallback, useRef } from 'react';
 import { FlatList, type ListRenderItemInfo, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Thumb } from './Thumb';
+import { useCachedCover } from '../../features/useMusicMeta';
 import { useTheme, useThemedStyles, type Theme } from '../theme';
 import type { Track } from '../../api/types';
 
@@ -85,11 +86,12 @@ const Card = memo(function Card({
   const theme = useTheme();
   const styles = useThemedStyles(makeStyles);
   const handlePress = useCallback(() => onPress(index), [onPress, index]);
+  const cover = useCachedCover(track) ?? track.artwork;
 
   return (
     <Pressable onPress={handlePress} style={styles.card}>
       <Thumb
-        uri={track.artwork}
+        uri={cover}
         seed={track.title}
         size={theme.layout.cardWidth}
         rounded={theme.components.thumb === 'square' ? 0 : theme.radius.card}

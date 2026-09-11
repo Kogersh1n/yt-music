@@ -62,19 +62,6 @@ export function getYouTubeStream(
   return request(`/songs/youtube/stream/${encodeURIComponent(videoId)}`, { signal });
 }
 
-/**
- * Импорт трека в медиатеку. Долгая операция: yt-dlp скачивает аудио,
- * потом оно заливается в хранилище — отсюда увеличенный таймаут.
- */
-export function importFromYouTube(url: string, signal?: AbortSignal): Promise<SongResponse> {
-  return request<SongResponse>('/songs/import/youtube', {
-    method: 'POST',
-    body: JSON.stringify({ query: url }),
-    timeoutMs: LONG_TIMEOUT_MS,
-    signal,
-  });
-}
-
 export function deleteSong(songId: string, signal?: AbortSignal): Promise<void> {
   return request<void>(`/songs/${songId}`, { method: 'DELETE', signal });
 }

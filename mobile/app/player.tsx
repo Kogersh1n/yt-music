@@ -16,6 +16,7 @@ import { useTheme, useThemedStyles, type Theme } from '../src/ui/theme';
 import { useCurrentTrack, useQueue } from '../src/player/queueStore';
 import { usePlayback } from '../src/player/usePlayback';
 import { useIsLiked, toggleLike } from '../src/local/likes';
+import { useMusicCover } from '../src/features/useMusicMeta';
 import { trackKey } from '../src/api/types';
 
 /**
@@ -41,6 +42,15 @@ export default function PlayerScreen() {
   const liked = useIsLiked(track ? trackKey(track) : '');
   const format = useTrackFormat(track);
 
+  // Обложка из YouTube Music, если она нашлась.
+  //
+  // У обычного ролика есть только кадр 16:9 — вписанный в квадрат, он даёт
+  // обрезанный клип. У аудиозаписи в YouTube Music лежит настоящая обложка
+  // альбома, квадратная и в нужном разрешении. Ищется она один раз на трек
+  // и запоминается, так что при возврате на экран запроса уже нет.
+  const musicCover = useMusicCover(track);
+  const artwork = musicCover ?? track?.artwork ?? null;
+
   // Цвет обложки считается асинхронно. До ответа берётся уже известный
   // (из кэша) — тогда при возврате на экран свечение не мигает.
   const [dominant, setDominant] = useState<string | null>(() =>
@@ -49,17 +59,16 @@ export default function PlayerScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    const uri = track?.artwork ?? null;
 
-    setDominant(peekDominantColor(uri));
-    void resolveDominantColor(uri).then((color) => {
+    setDominant(peekDominantColor(artwork));
+    void resolveDominantColor(artwork).then((color) => {
       if (!cancelled) setDominant(color);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [track?.artwork]);
+  }, [artwork]);
 
   const seed = track ? track.id + track.title : 'empty';
 
@@ -103,7 +112,7 @@ export default function PlayerScreen() {
       <View style={styles.art}>
         <Glow color={glowColor} size={artSize} />
         <Thumb
-          uri={track.artwork}
+          uri={artwork}
           seed={track.title}
           size={artSize}
           rounded={theme.components.thumb === 'square' ? 0 : theme.radius.card}
@@ -124,7 +133,21 @@ export default function PlayerScreen() {
             </View>
           </View>
 
-          <Pressable onPress={() => toggleLike(trackKey(track))} hitSlop={12} style={styles.like}>
+          <Pressable
+            onPress={() => router.push('/lyrics')}
+            hitSlop={12}
+            style={styles.action}
+            accessibilityLabel="Текст песни"
+          >
+            <MaterialIcons name="lyrics" size={22} color={theme.colors.text} />
+          </Pressable>
+
+          <Pressable
+            onPress={() => toggleLike(trackKey(track))}
+            hitSlop={12}
+            style={styles.action}
+            accessibilityLabel={liked ? 'Убрать из понравившихся' : 'Нравится'}
+          >
             <MaterialIcons
               name={liked ? 'favorite' : 'favorite-border'}
               size={24}
@@ -198,7 +221,7 @@ const makeStyles = (t: Theme) =>
     title: { ...t.type.title, fontSize: t.type.title.fontSize - 2, color: t.colors.text },
     authorRow: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm },
     author: { ...t.type.body, color: t.colors.textDim, flexShrink: 1 },
-    like: { width: 36, alignItems: 'center' },
+    action: { width: 36, alignItems: 'center' },
     error: { ...t.type.meta, color: t.colors.danger, textAlign: 'center' },
     controls: {
       flexDirection: 'row',

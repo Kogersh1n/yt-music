@@ -139,4 +139,22 @@ class SongRepository(BaseRepository[Song, SongCreate, SongUpdate]):
         return True
 
 
+    async def get_by_youtube_id(
+        self,
+        session: AsyncSession,
+        *,
+        youtube_id: str,
+    ) -> Song | None:
+        """Песня по идентификатору ролика, если она уже импортирована.
+
+        Нужна, чтобы повторный импорт не доходил до вставки: youtube_id
+        помечен unique, и на дубле база поднимает IntegrityError, который
+        превращается в голый 500. Проверка до вставки даёт внятный ответ.
+        """
+        result = await session.execute(
+            select(Song).where(Song.youtube_id == youtube_id)
+        )
+        return result.scalar_one_or_none()
+
+
 song_repository = SongRepository()     

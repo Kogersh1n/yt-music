@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,6 +17,9 @@ import { useTheme, useThemeControls, useThemedStyles, type Theme } from '../../s
 import { useSettings, updateSettings } from '../../src/local/settings';
 import { useStats, formatListening, resetStats } from '../../src/local/stats';
 import { useLikedIds } from '../../src/local/likes';
+import { usePlayEvents } from '../../src/local/plays';
+import { computeRecap } from '../../src/features/recap';
+import { audioCacheStats, clearAudioCache } from '../../src/local/audioCache';
 import { useIsSignedIn, signOut } from '../../src/auth/session';
 import { measureCache, clearCache, formatBytes, type CacheUsage } from '../../src/local/cache';
 import { applyAudioOptions } from '../../src/player/setup';
@@ -40,6 +43,20 @@ export default function ProfileScreen() {
   const stats = useStats();
   const liked = useLikedIds();
   const signedIn = useIsSignedIn();
+  const events = usePlayEvents();
+
+  /**
+   * Итоги за всё время.
+   *
+   * Тот же расчёт, что и у месячного рекапа, — просто на всём журнале:
+   * границы периода задаются параметрами, поэтому отдельной функции
+   * не нужно. Профиль показывает вершину списка, подробности живут
+   * на экране итогов.
+   */
+  const allTime = useMemo(
+    () => computeRecap(events, 0, Date.now(), [], 3),
+    [events],
+  );
 
   const [cache, setCache] = useState<CacheUsage | null>(null);
   const [measuring, setMeasuring] = useState(false);
@@ -161,6 +178,24 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {/* --- Кого слушают --- */}
+      {allTime.topArtists.length > 0 ? (
+        <>
+          <Text style={styles.section}>Больше всего слушали</Text>
+          <View style={styles.card}>
+            {allTime.topArtists.map((artist, index) => (
+              <View key={artist.author} style={styles.rank}>
+                <Text style={styles.rankNumber}>{index + 1}</Text>
+                <Text numberOfLines={1} style={styles.rankName}>
+                  {artist.author}
+                </Text>
+                <Text style={styles.rankValue}>{formatListening(artist.seconds)}</Text>
+              </View>
+            ))}
+          </View>
+        </>
+      ) : null}
+
       {/* --- Итоги --- */}
       <Text style={styles.section}>Итоги</Text>
       <Pressable style={styles.link} onPress={() => router.push('/recap')}>
@@ -208,6 +243,8 @@ export default function ProfileScreen() {
             <UsageRow label="Всего" value={formatBytes(cache.totalBytes)} strong />
           </>
         )}
+
+        <OfflineRow />
 
         <View style={styles.cacheButtons}>
           <Pressable
@@ -264,6 +301,39 @@ export default function ProfileScreen() {
   );
 }
 
+/**
+ * Скачанные треки.
+ *
+ * Стоят отдельно от общего кэша: тот приложение вправе очистить само,
+ * а эти пять треков — единственное, что играет без сети, и стирать их
+ * заодно с обложками было бы неожиданно.
+ */
+function OfflineRow() {
+  const styles = useThemedStyles(makeStyles);
+  const [stats, setStats] = useState(() => audioCacheStats());
+
+  return (
+    <View style={styles.offline}>
+      <UsageRow
+        label={`Треки офлайн (${stats.count} из 5)`}
+        value={formatBytes(stats.bytes)}
+      />
+      {stats.count > 0 ? (
+        <Pressable
+          onPress={() => {
+            clearAudioCache();
+            setStats(audioCacheStats());
+            tapMedium();
+          }}
+          hitSlop={8}
+        >
+          <Text style={styles.offlineClear}>Удалить</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 function Stat({ value, label }: { value: string; label: string }) {
   const styles = useThemedStyles(makeStyles);
   return (
@@ -315,6 +385,22 @@ function Toggle({
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
+    rank: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: t.spacing.md,
+      paddingVertical: t.spacing.sm,
+    },
+    rankNumber: {
+      ...t.type.meta,
+      color: t.colors.textFaint,
+      width: 16,
+      fontVariant: ['tabular-nums'],
+    },
+    rankName: { ...t.type.body, color: t.colors.text, flex: 1 },
+    rankValue: { ...t.type.meta, color: t.colors.textDim, fontVariant: ['tabular-nums'] },
+    offline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    offlineClear: { ...t.type.meta, color: t.colors.danger },
     screen: { flex: 1, backgroundColor: t.colors.bg },
     content: { gap: t.spacing.sm },
     title: { ...t.type.title, color: t.colors.text, paddingHorizontal: t.layout.screenPadding },

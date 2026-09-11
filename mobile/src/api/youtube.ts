@@ -1,11 +1,18 @@
+import {
+  getVisitorData,
+  innertube,
+  INNERTUBE_USER_AGENT,
+  type InnertubeClient,
+} from './innertube';
+
 /**
  * Извлечение ссылки на аудио прямо на телефоне.
  *
  * Зачем это здесь, а не на бэкенде. YouTube отказывает адресам дата-центров
  * («Sign in to confirm you're not a bot»): с сервера Oracle проходит примерно
  * один запрос из четырёх, с домашнего адреса — все. Телефон сидит на обычном
- * мобильном или домашнем интернете, и для ютуба он неотличим от любого другого
- * зрителя. Поэтому ссылку достаёт тот, кто будет по ней играть.
+ * мобильном или домашнем интернете, и для ютуба он неотличим от любого
+ * другого зрителя. Поэтому ссылку достаёт тот, кто будет по ней играть.
  *
  * Почему клиент VISIONOS. Обычные клиенты плеера (web, android, ios, tv)
  * переведены на SABR: вместо прямой ссылки они отдают serverAbrStreamingUrl,
@@ -17,14 +24,22 @@
  * два обычных HTTP-запроса, и оба умеет fetch.
  */
 
-const CLIENT_NAME = 'VISIONOS';
-const CLIENT_VERSION = '1.02';
-const CLIENT_ID = '101';
-const USER_AGENT =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 ' +
-  '(KHTML, like Gecko) Version/26.0 Safari/605.1.15';
-
-const PLAYER_URL = 'https://www.youtube.com/youtubei/v1/player?prettyPrint=false';
+const PLAYER: InnertubeClient = {
+  name: 'VISIONOS',
+  version: '1.02',
+  id: '101',
+  host: 'www.youtube.com',
+  extra: {
+    deviceMake: 'Apple',
+    deviceModel: 'RealityDevice17,1',
+    userAgent: INNERTUBE_USER_AGENT,
+    osName: 'visionOS',
+    osVersion: '26.5.23O471',
+    hl: 'en',
+    timeZone: 'UTC',
+    utcOffsetMinutes: 0,
+  },
+};
 
 export interface ExtractedStream {
   url: string;
@@ -35,33 +50,6 @@ export interface ExtractedStream {
   durationSec: number;
   title: string;
   author: string;
-}
-
-/**
- * visitorData — метка сессии, без которой плеер отвечает LOGIN_REQUIRED.
- *
- * Живёт долго и одинакова для всех треков, поэтому берётся один раз
- * и держится в памяти: иначе на каждое включение уходило бы два запроса
- * вместо одного.
- */
-let visitorData: string | null = null;
-
-async function fetchVisitorData(): Promise<string> {
-  const response = await fetch('https://www.youtube.com/', {
-    headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'en-US,en;q=0.9' },
-  });
-  const html = await response.text();
-  const match = html.match(/"visitorData":"([^"]+)"/);
-  if (!match) throw new Error('YouTube не отдал visitorData');
-  // Значение лежит внутри JS-литерала и содержит экранирование вида =.
-  // JSON.parse разбирает его правильно, ручная замена — нет.
-  return JSON.parse(`"${match[1]}"`) as string;
-}
-
-async function ensureVisitorData(force = false): Promise<string> {
-  if (!force && visitorData) return visitorData;
-  visitorData = await fetchVisitorData();
-  return visitorData;
 }
 
 interface AdaptiveFormat {
@@ -85,8 +73,7 @@ function pickFormat(formats: AdaptiveFormat[]): AdaptiveFormat | null {
   );
   if (playable.length === 0) return null;
 
-  const byBitrate = (a: AdaptiveFormat, b: AdaptiveFormat) =>
-    (b.bitrate ?? 0) - (a.bitrate ?? 0);
+  const byBitrate = (a: AdaptiveFormat, b: AdaptiveFormat) => (b.bitrate ?? 0) - (a.bitrate ?? 0);
 
   const mp4 = playable.filter((f) => f.mimeType!.startsWith('audio/mp4'));
   return (mp4.length > 0 ? mp4 : playable).sort(byBitrate)[0];
@@ -94,7 +81,7 @@ function pickFormat(formats: AdaptiveFormat[]): AdaptiveFormat | null {
 
 /**
  * Срок жизни ссылки записан в ней самой, в параметре expire (unix-секунды).
- * Берём его, а не выдумываем свой TTL: угадать короче — лишние запросы,
+ * Берём его, а не выдумываем свой: угадать короче — лишние запросы,
  * угадать длиннее — обрыв воспроизведения на середине трека.
  */
 function expiryFromUrl(url: string): number {
@@ -103,44 +90,25 @@ function expiryFromUrl(url: string): number {
   return Number(match[1]) * 1000;
 }
 
-async function requestPlayer(videoId: string, visitor: string): Promise<any> {
-  const body = {
-    context: {
-      client: {
-        clientName: CLIENT_NAME,
-        clientVersion: CLIENT_VERSION,
-        deviceMake: 'Apple',
-        deviceModel: 'RealityDevice17,1',
-        userAgent: USER_AGENT,
-        osName: 'visionOS',
-        osVersion: '26.5.23O471',
-        hl: 'en',
-        timeZone: 'UTC',
-        utcOffsetMinutes: 0,
-        visitorData: visitor,
-      },
-    },
-    videoId,
-    playbackContext: { contentPlaybackContext: { html5Preference: 'HTML5_PREF_WANTS' } },
-    // Без этих двух флагов ролики с пометками отвечают отказом ещё до формата.
-    contentCheckOk: true,
-    racyCheckOk: true,
-  };
+interface PlayerResponse {
+  playabilityStatus?: { status?: string; reason?: string };
+  streamingData?: { adaptiveFormats?: AdaptiveFormat[] };
+  videoDetails?: { title?: string; author?: string; lengthSeconds?: string };
+}
 
-  const response = await fetch(PLAYER_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': USER_AGENT,
-      'X-Youtube-Client-Name': CLIENT_ID,
-      'X-Youtube-Client-Version': CLIENT_VERSION,
-      'X-Goog-Visitor-Id': visitor,
-      Origin: 'https://www.youtube.com',
+function requestPlayer(videoId: string, visitor: string): Promise<PlayerResponse> {
+  return innertube<PlayerResponse>(
+    PLAYER,
+    'player',
+    {
+      videoId,
+      playbackContext: { contentPlaybackContext: { html5Preference: 'HTML5_PREF_WANTS' } },
+      // Без этих двух флагов ролики с пометками отвечают отказом ещё до формата.
+      contentCheckOk: true,
+      racyCheckOk: true,
     },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) throw new Error(`YouTube ответил ${response.status}`);
-  return response.json();
+    visitor,
+  );
 }
 
 /**
@@ -150,13 +118,13 @@ async function requestPlayer(videoId: string, visitor: string): Promise<any> {
  * откатиться на бэкенд, а не показывать пустой плеер.
  */
 export async function extractStreamUrl(videoId: string): Promise<ExtractedStream> {
-  let visitor = await ensureVisitorData();
+  let visitor = await getVisitorData();
   let data = await requestPlayer(videoId, visitor);
 
   // Просроченная метка сессии выглядит как LOGIN_REQUIRED. Она живёт долго,
   // но не вечно, поэтому один раз пробуем обновить её и повторить.
   if (data?.playabilityStatus?.status === 'LOGIN_REQUIRED') {
-    visitor = await ensureVisitorData(true);
+    visitor = await getVisitorData(true);
     data = await requestPlayer(videoId, visitor);
   }
 

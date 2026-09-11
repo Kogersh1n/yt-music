@@ -61,6 +61,29 @@ async function put(file: File, url: string, contentType: string): Promise<void> 
   }
 }
 
+/**
+ * Ответ сервера — в понятную фразу.
+ *
+ * Коды здесь не абстрактные: 409 отдаётся при повторном импорте (youtube_id
+ * в базе уникален), 401 — если ручки заливки требуют входа, а его нет.
+ * Без перевода пользователь видел бы «Internal Server Error» на ситуации
+ * «трек уже добавлен», то есть обычное дело выглядело бы как поломка.
+ */
+function asHumanError(error: unknown): Error {
+  if (!(error instanceof ApiError)) return error as Error;
+
+  if (error.status === 409) {
+    return new Error(error.message || 'Этот трек уже есть в медиатеке');
+  }
+  if (error.status === 401 || error.status === 403) {
+    return new Error('Войдите в аккаунт, чтобы добавлять треки в медиатеку');
+  }
+  if (error.isNetwork) {
+    return new Error('Нет связи с сервером');
+  }
+  return error;
+}
+
 function remove(file: File | null): void {
   try {
     if (file?.exists) file.delete();
@@ -113,7 +136,12 @@ export async function importTrack(
     }
 
     onProgress?.({ stage: 'upload' });
-    const audioSlot = await getAudioUploadUrl(`${videoId}.${ext}`, type);
+    let audioSlot;
+    try {
+      audioSlot = await getAudioUploadUrl(`${videoId}.${ext}`, type);
+    } catch (error) {
+      throw asHumanError(error);
+    }
     await put(audio, audioSlot.upload_url, type);
 
     let coverKey: string | null = null;
@@ -141,13 +169,7 @@ export async function importTrack(
         youtube_id: videoId,
       });
     } catch (error) {
-      // youtube_id в базе уникален, а бэкенд вставляет без проверки —
-      // на повторе прилетает голый 500. Пользователю это ни о чём
-      // не говорит, поэтому переводим на человеческий.
-      if (error instanceof ApiError && error.status >= 500) {
-        throw new Error('Похоже, этот трек уже есть в медиатеке');
-      }
-      throw error;
+      throw asHumanError(error);
     }
   } finally {
     remove(audio);
