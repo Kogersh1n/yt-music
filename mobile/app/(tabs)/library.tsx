@@ -1,12 +1,14 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
+import { useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Chip } from '../../src/ui/components/Chip';
 import { TrackRow } from '../../src/ui/components/TrackRow';
 import { ActionSheet, type SheetAction } from '../../src/ui/components/ActionSheet';
+import { AddToPlaylistSheet } from '../../src/ui/components/AddToPlaylistSheet';
 import { EmptyState, ErrorState, TrackListSkeleton } from '../../src/ui/components/states';
 import { useTheme, useThemedStyles, type Theme } from '../../src/ui/theme';
 import { useLibrary, useLibraryFilter } from '../../src/features/useLibrary';
@@ -51,6 +53,7 @@ export default function LibraryScreen() {
   // пересоздавала бы обработчик и с ним весь renderItem списка.
   const likedIdsRef = useRef(new Set(likedIds));
   likedIdsRef.current = new Set(likedIds);
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { play } = usePlayback();
 
@@ -110,6 +113,7 @@ export default function LibraryScreen() {
    * и не показывает опасное действие опасным.
    */
   const [menuTrack, setMenuTrack] = useState<Track | null>(null);
+  const [playlistTrack, setPlaylistTrack] = useState<Track | null>(null);
   const handleMenu = useCallback((track: Track) => setMenuTrack(track), []);
 
   const menuActions = useMemo<SheetAction[]>(() => {
@@ -124,6 +128,16 @@ export default function LibraryScreen() {
         onPress: () => toggleLike(key),
       },
     ];
+
+    // Только для треков из медиатеки: плейлист хранит связь с песней
+    // по её идентификатору на сервере, а у играющих по ссылке его нет.
+    if (menuTrack.source === 'library') {
+      actions.push({
+        label: 'Добавить в плейлист',
+        icon: 'playlist-add',
+        onPress: () => setPlaylistTrack(menuTrack),
+      });
+    }
 
     // Удалять можно только то, что лежит в медиатеке: у треков,
     // играющих по ссылке, удалять на сервере нечего.
@@ -181,6 +195,18 @@ export default function LibraryScreen() {
         ) : null}
       </View>
 
+      {/* Вход в плейлисты: модуль на бэкенде был написан целиком
+          и всё это время оставался без единого экрана. */}
+      <Pressable
+        style={styles.playlistsLink}
+        onPress={() => router.push('/playlists')}
+        android_ripple={{ color: 'rgba(128,128,128,0.14)' }}
+      >
+        <MaterialIcons name="queue-music" size={20} color={theme.colors.text} />
+        <Text style={styles.playlistsLabel}>Плейлисты</Text>
+        <MaterialIcons name="chevron-right" size={20} color={theme.colors.textFaint} />
+      </Pressable>
+
       <View style={styles.chips}>
         <Chip label="Все треки" active={filter === 'all'} onPress={() => setFilter('all')} />
         <Chip
@@ -231,6 +257,8 @@ export default function LibraryScreen() {
           }
         />
       )}
+
+      <AddToPlaylistSheet track={playlistTrack} onClose={() => setPlaylistTrack(null)} />
 
       <ActionSheet
         visible={menuTrack !== null}
@@ -286,6 +314,18 @@ const makeStyles = (t: Theme) =>
       borderRadius: t.radius.chip,
     },
     searchInput: { flex: 1, color: t.colors.text, fontSize: t.type.body.fontSize, padding: 0 },
+    playlistsLink: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: t.spacing.md,
+      marginHorizontal: t.layout.screenPadding,
+      marginTop: t.spacing.md,
+      paddingHorizontal: t.spacing.md,
+      paddingVertical: t.spacing.md,
+      backgroundColor: t.colors.surface,
+      borderRadius: t.radius.chip,
+    },
+    playlistsLabel: { ...t.type.body, color: t.colors.text, flex: 1 },
     chips: {
       flexDirection: 'row',
       gap: t.spacing.sm,

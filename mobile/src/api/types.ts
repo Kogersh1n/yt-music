@@ -56,6 +56,19 @@ export interface YouTubeSearchResponse {
   query: string;
 }
 
+export interface PlaylistResponse {
+  id: string;
+  playlist_name: string;
+  /** Суммарная длительность в секундах — считает бэкенд. */
+  playlist_duration: number;
+  user_id: string;
+  songs_count: number;
+}
+
+export interface PlaylistDetailResponse extends PlaylistResponse {
+  songs: SongResponse[];
+}
+
 /** Ответ ручек upload-url и upload-cover-url: куда лить и под каким ключом. */
 export interface UploadCredentialsResponse {
   upload_url: string;
