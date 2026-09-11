@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState, ErrorState } from '../src/ui/components/states';
 import { ActionSheet, type SheetAction } from '../src/ui/components/ActionSheet';
 import { MiniPlayer } from '../src/ui/components/MiniPlayer';
-import { useTheme, useThemedStyles, formatDuration, type Theme } from '../src/ui/theme';
+import { plural, useTheme, useThemedStyles, formatDuration, type Theme } from '../src/ui/theme';
 import { usePlaylists, usePlaylistActions } from '../src/features/usePlaylists';
 import { tapMedium } from '../src/ui/haptics';
 import type { PlaylistResponse } from '../src/api/types';
@@ -119,7 +119,7 @@ export default function PlaylistsScreen() {
           <Text style={styles.meta}>
             {item.songs_count === 0
               ? 'Пока пусто'
-              : `${item.songs_count} ${plural(item.songs_count)} · ${formatDuration(item.playlist_duration)}`}
+              : `${item.songs_count} ${plural(item.songs_count, 'трек', 'трека', 'треков')} · ${formatDuration(item.playlist_duration)}`}
           </Text>
         </View>
 
@@ -180,7 +180,7 @@ export default function PlaylistsScreen() {
       <ActionSheet
         visible={menu !== null}
         title={menu?.playlist_name ?? ''}
-        subtitle={menu ? `${menu.songs_count} ${plural(menu.songs_count)}` : undefined}
+        subtitle={menu ? `${menu.songs_count} ${plural(menu.songs_count, 'трек', 'трека', 'треков')}` : undefined}
         actions={menuActions}
         onClose={() => setMenu(null)}
       />
@@ -227,15 +227,6 @@ export default function PlaylistsScreen() {
       <MiniPlayer standalone />
     </View>
   );
-}
-
-/** «1 трек», «2 трека», «5 треков» — иначе подпись выглядит машинной. */
-export function plural(count: number): string {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  if (mod10 === 1 && mod100 !== 11) return 'трек';
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'трека';
-  return 'треков';
 }
 
 function Body({

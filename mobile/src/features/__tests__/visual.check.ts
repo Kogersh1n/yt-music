@@ -9,6 +9,7 @@
  */
 import { averageColorFromBlurhash, rgbToHex, brightness } from '../../ui/blurhash';
 import { scoreMatch, fuzzyFilter } from '../fuzzy';
+import { plural } from '../../ui/plural';
 import { artworkGlow, artworkGradient } from '../../ui/artworkColor';
 import { hexToHsl } from '../../ui/theme/color';
 
@@ -94,6 +95,17 @@ check(
 );
 check('нет совпадения → null', scoreMatch('abc', 'xyz') === null);
 check('запрос длиннее текста → null', scoreMatch('ab', 'abcdef') === null);
+
+
+console.log('— склонение после числа');
+for (const [n, want] of [
+  [1, 'раз'], [2, 'раза'], [4, 'раза'], [5, 'раз'], [9, 'раз'],
+  [11, 'раз'], [12, 'раз'], [14, 'раз'], [21, 'раз'], [22, 'раза'],
+  [25, 'раз'], [101, 'раз'], [112, 'раз'],
+] as const) {
+  const got = plural(n, 'раз', 'раза', 'раз');
+  check(`${n} ${want}`, got === want, got === want ? '' : `получили «${got}»`);
+}
 
 console.log(failures === 0 ? '\nВСЁ ПРОШЛО' : `\nПРОВАЛОВ: ${failures}`);
 process.exit(failures === 0 ? 0 : 1);

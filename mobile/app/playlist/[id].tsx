@@ -8,12 +8,11 @@ import { TrackRow } from '../../src/ui/components/TrackRow';
 import { ActionSheet, type SheetAction } from '../../src/ui/components/ActionSheet';
 import { MiniPlayer } from '../../src/ui/components/MiniPlayer';
 import { EmptyState, ErrorState, TrackListSkeleton } from '../../src/ui/components/states';
-import { useTheme, useThemedStyles, formatDuration, type Theme } from '../../src/ui/theme';
+import { plural, useTheme, useThemedStyles, formatDuration, type Theme } from '../../src/ui/theme';
 import { usePlaylist, usePlaylistActions } from '../../src/features/usePlaylists';
 import { usePlayback } from '../../src/player/usePlayback';
 import { toggleLike } from '../../src/local/likes';
 import { trackKey, type Track } from '../../src/api/types';
-import { plural } from '../playlists';
 
 /**
  * Один плейлист: состав, воспроизведение, удаление треков.
@@ -81,7 +80,7 @@ export default function PlaylistScreen() {
             <Text style={styles.headerMeta}>
               {playlist.songs_count === 0
                 ? 'Пока пусто'
-                : `${playlist.songs_count} ${plural(playlist.songs_count)} · ${formatDuration(playlist.playlist_duration)}`}
+                : `${playlist.songs_count} ${plural(playlist.songs_count, 'трек', 'трека', 'треков')} · ${formatDuration(playlist.playlist_duration)}`}
             </Text>
           ) : null}
         </View>

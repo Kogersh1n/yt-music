@@ -13,7 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme, useThemeControls, useThemedStyles, type Theme } from '../../src/ui/theme';
+import { plural, useTheme, useThemeControls, useThemedStyles, type Theme } from '../../src/ui/theme';
 import { useSettings, updateSettings } from '../../src/local/settings';
 import { useStats, formatListening, resetStats } from '../../src/local/stats';
 import { useLikedIds } from '../../src/local/likes';
@@ -223,7 +223,7 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
                 <Text style={styles.rankValue}>
-                  {track.plays} {track.plays === 1 ? 'раз' : 'раза'}
+                  {track.plays} {plural(track.plays, 'раз', 'раза', 'раз')}
                 </Text>
               </View>
             ))}

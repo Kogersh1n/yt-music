@@ -1,4 +1,5 @@
 export { ThemeProvider, useTheme, useThemeControls, useThemedStyles } from './context';
+export { plural } from '../plural';
 export {
   resolveTheme,
   checkContrast,
