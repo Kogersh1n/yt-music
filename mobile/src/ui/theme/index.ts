@@ -10,7 +10,7 @@ export {
 export { validateThemeSource, parseThemeJson } from './validate';
 export { BUILTIN_THEMES, DEFAULT_THEME_ID } from './themes';
 export { FONTS, isKnownFont } from './fonts';
-export { FONT_ASSETS } from './fontAssets';
+export { FONT_ASSETS, EXTRA_FONT_ASSETS } from './fontAssets';
 export { contrastRatio, hexToHsl, hslToHex } from './color';
 export {
   useCustomThemes,

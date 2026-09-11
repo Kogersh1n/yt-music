@@ -5,14 +5,21 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useFonts } from 'expo-font';
+import { loadAsync, useFonts } from 'expo-font';
 import { setupPlayer } from '../src/player/setup';
 import { warmVisitorData } from '../src/api/innertube';
 import { setImportListener } from '../src/features/importQueue';
 import { AppErrorBoundary } from '../src/ui/components/AppErrorBoundary';
 import { initSession } from '../src/auth/session';
 import { useQueue } from '../src/player/queueStore';
-import { ThemeProvider, useTheme, useThemedStyles, FONT_ASSETS, type Theme } from '../src/ui/theme';
+import {
+  ThemeProvider,
+  useTheme,
+  useThemedStyles,
+  FONT_ASSETS,
+  EXTRA_FONT_ASSETS,
+  type Theme,
+} from '../src/ui/theme';
 
 /**
  * Корневой layout: провайдеры и однократная инициализация плеера.
@@ -31,15 +38,21 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
-  // Шрифты для тем грузятся один раз при старте. Пока не готовы —
-  // ничего не рисуем: иначе текст успеет отрисоваться системной гарнитурой
+  // До первого кадра ждём только гарнитуру по умолчанию. Пока она не готова,
+  // ничего не рисуем: иначе текст успеет отрисоваться системным шрифтом
   // и прыгнуть при подмене.
+  //
+  // Шрифты остальных тем догружаются следом, в фоне — ради них держать
+  // чёрный экран не стоит.
   const [fontsLoaded, fontError] = useFonts(FONT_ASSETS);
   const [playerError, setPlayerError] = useState<string | null>(null);
   const restore = useQueue((state) => state.restore);
 
   useEffect(() => {
     let cancelled = false;
+
+    // Шрифты остальных тем — после первого кадра и без ожидания.
+    void loadAsync(EXTRA_FONT_ASSETS).catch(() => undefined);
 
     // Медиатеку обновляем из корневого layout, а не с экрана поиска.
     //

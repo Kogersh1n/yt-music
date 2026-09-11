@@ -58,7 +58,9 @@ export const TrackRow = memo(function TrackRow({
   const theme = useTheme();
   const styles = useThemedStyles(makeStyles);
   const liked = useIsLiked(trackKey(track));
-  const addToQueue = useQueue((state) => state.addToQueue);
+  // Одна подписка вместо двух: действие из стора не меняется никогда,
+  // и держать под него отдельного подписчика на каждую строку списка
+  // незачем — берём его напрямую из хранилища в момент нажатия.
   const isActive = useQueue((state) => state.queue[state.index]?.id === track.id);
 
 
@@ -72,9 +74,9 @@ export const TrackRow = memo(function TrackRow({
   }, [track]);
 
   const handleQueue = useCallback(() => {
-    addToQueue(track);
+    useQueue.getState().addToQueue(track);
     notifySuccess();
-  }, [addToQueue, track]);
+  }, [track]);
 
   const row = (
     <Pressable

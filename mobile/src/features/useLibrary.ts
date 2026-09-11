@@ -19,14 +19,24 @@ import { fuzzyFilter } from './fuzzy';
  * сервером — иначе его невозможно показать.
  */
 export function useBackendAvailable() {
-  return useQuery({
+  const query = useQuery({
     queryKey: ['backend-alive'],
     queryFn: ping,
-    // Проверяем редко: если сервер поднялся, пользователь всё равно потянет
-    // список вниз для обновления.
+    // Повторяем: первая проверка приходится на самый холодный момент —
+    // сразу после запуска, когда сеть ещё не прогрета. Раньше стояло
+    // retry: false, и единственная неудача уводила в демо-режим на минуту.
+    retry: 2,
+    retryDelay: (attempt) => 500 * 2 ** attempt,
+    // Успех держим минуту, неудачу не кэшируем вовсе: сервер мог просто
+    // не успеть ответить, и следующая попытка должна быть настоящей.
     staleTime: 60_000,
-    retry: false,
+    gcTime: 60_000,
   });
+
+  // Отличаем «сервера нет» от «ещё проверяем»: до ответа медиатека
+  // не должна показывать ни демо-набор, ни пустоту.
+  const online = query.isSuccess ? true : query.isError ? false : undefined;
+  return { data: online, isPending: query.isPending };
 }
 
 /**

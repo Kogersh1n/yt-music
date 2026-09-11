@@ -1,4 +1,4 @@
-import { memo, useCallback, type ReactNode } from 'react';
+import { memo, useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -41,30 +41,44 @@ export const SwipeableRow = memo(function SwipeableRow({
   const styles = useThemedStyles(makeStyles);
   const offset = useSharedValue(0);
 
-  const settle = useCallback(
-    (finalOffset: number) => {
-      if (finalOffset > THRESHOLD) onSwipeRight?.run();
-      else if (finalOffset < -THRESHOLD) onSwipeLeft?.run();
-    },
-    [onSwipeRight, onSwipeLeft],
-  );
+  /**
+   * Действия и скорость анимации держим в ref, а жест собираем один раз.
+   *
+   * Раньше Gesture.Pan() строился на каждый рендер строки. В списке таких
+   * строк десяток на экране, и при прокрутке каждая перерисовка тянула
+   * за собой сборку и переподключение жеста — то есть работу, которой
+   * пользователь не просил.
+   *
+   * Мемоизации самой по себе мало: объекты действий создаются литералами
+   * в вызывающем коде и на каждом рендере новые, а значит любые зависимости
+   * от них обесценили бы memo. Отсюда ref: жест читает свежее значение
+   * в момент жеста, а не хранит его в замыкании.
+   */
+  const actionsRef = useRef({ onSwipeRight, onSwipeLeft, motion: theme.motion.scale });
+  actionsRef.current = { onSwipeRight, onSwipeLeft, motion: theme.motion.scale };
 
-  const gesture = Gesture.Pan()
-    // Горизонтальная активация: иначе жест перехватывал бы вертикальный скролл.
-    .activeOffsetX([-16, 16])
-    .failOffsetY([-12, 12])
-    .onUpdate((event) => {
-      const allowed =
-        (event.translationX > 0 && onSwipeRight) || (event.translationX < 0 && onSwipeLeft);
-      if (!allowed) return;
-      offset.value = Math.max(-MAX_TRAVEL, Math.min(event.translationX, MAX_TRAVEL));
-    })
-    .onEnd(() => {
-      runOnJS(settle)(offset.value);
-      // Возврат мгновенный, если тема отключила анимации.
-      offset.value =
-        theme.motion.scale === 0 ? 0 : withTiming(0, { duration: 180 * theme.motion.scale });
-    });
+  const settle = useCallback((finalOffset: number) => {
+    const { onSwipeRight: right, onSwipeLeft: left } = actionsRef.current;
+    if (finalOffset > THRESHOLD) right?.run();
+    else if (finalOffset < -THRESHOLD) left?.run();
+  }, []);
+
+  const gesture = useMemo(
+    () =>
+      Gesture.Pan()
+        // Горизонтальная активация: иначе жест перехватывал бы вертикальный скролл.
+        .activeOffsetX([-16, 16])
+        .failOffsetY([-12, 12])
+        .onUpdate((event) => {
+          offset.value = Math.max(-MAX_TRAVEL, Math.min(event.translationX, MAX_TRAVEL));
+        })
+        .onEnd(() => {
+          runOnJS(settle)(offset.value);
+          // Возврат мгновенный, если тема отключила анимации.
+          offset.value = withTiming(0, { duration: 180 });
+        }),
+    [offset, settle],
+  );
 
   const rowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: offset.value }] }));
 
