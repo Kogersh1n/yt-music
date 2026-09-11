@@ -104,8 +104,10 @@ export function useMusicCover(track: Track | null): string | null {
  * в плеере, на полноэкранной обложке, где качество и правда видно. То есть
  * медиатека хорошеет по мере того, как её слушают.
  */
-export function useCachedCover(track: Track): string | null {
-  const key = trackKey(track);
+export function useCachedCover(track: Track | null): string | null {
+  // Принимает null, потому что мини-плеер зовёт хук до проверки «есть ли
+  // трек»: правила хуков не допускают вызова после раннего возврата.
+  const key = track ? trackKey(track) : '';
   const get = useCallback(() => matches[key]?.coverUrl ?? null, [key]);
   return useSyncExternalStore(subscribe, get);
 }

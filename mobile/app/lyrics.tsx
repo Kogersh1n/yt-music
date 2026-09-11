@@ -175,7 +175,8 @@ const makeStyles = (t: Theme) =>
     headerAuthor: { ...t.type.meta, color: t.colors.textDim },
 
     scroll: { flex: 1 },
-    content: { paddingHorizontal: t.spacing.xl, gap: 2 },
+    // Отступ сверху: без него первая строка липла к заголовку.
+    content: { paddingHorizontal: t.spacing.xl, paddingTop: t.spacing.lg, gap: 2 },
     // Текст крупнее обычного: его читают с расстояния вытянутой руки,
     // часто не глядя пристально.
     line: {

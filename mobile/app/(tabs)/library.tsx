@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Chip } from '../../src/ui/components/Chip';
 import { TrackRow } from '../../src/ui/components/TrackRow';
+import { ActionSheet, type SheetAction } from '../../src/ui/components/ActionSheet';
 import { EmptyState, ErrorState, TrackListSkeleton } from '../../src/ui/components/states';
 import { useTheme, useThemedStyles, type Theme } from '../../src/ui/theme';
 import { useLibrary, useLibraryFilter } from '../../src/features/useLibrary';
@@ -104,45 +105,47 @@ export default function LibraryScreen() {
   /**
    * Меню трека.
    *
-   * Раньше «⋮» молча переключала лайк — то есть кнопка с многоточием,
-   * которая обычно открывает выбор, делала одно действие без спроса.
-   * Теперь это настоящий выбор, и в нём наконец есть удаление: ручка
-   * DELETE /songs/{id} была написана, а дотянуться до неё из приложения
-   * было нечем.
+   * Свой лист, а не Alert.alert: системный диалог рисуется белой панелью
+   * поверх тёмного экрана, раскладывает кнопки в обратном порядке
+   * и не показывает опасное действие опасным.
    */
-  const handleMenu = useCallback(
-    (track: Track) => {
-      const liked = likedIdsRef.current.has(trackKey(track));
+  const [menuTrack, setMenuTrack] = useState<Track | null>(null);
+  const handleMenu = useCallback((track: Track) => setMenuTrack(track), []);
 
-      Alert.alert(track.title, track.author, [
-        {
-          text: liked ? 'Убрать из понравившихся' : 'Нравится',
-          onPress: () => toggleLike(trackKey(track)),
-        },
-        // Удалять можно только то, что лежит в медиатеке: у треков,
-        // которые играют по ссылке, удалять на сервере нечего.
-        ...(track.source === 'library'
-          ? [
-              {
-                text: 'Удалить из медиатеки',
-                style: 'destructive' as const,
-                onPress: () =>
-                  Alert.alert('Удалить трек?', 'Файл и запись исчезнут безвозвратно.', [
-                    { text: 'Отмена', style: 'cancel' as const },
-                    {
-                      text: 'Удалить',
-                      style: 'destructive' as const,
-                      onPress: () => removeSong.mutate(track.id),
-                    },
-                  ]),
-              },
-            ]
-          : []),
-        { text: 'Отмена', style: 'cancel' as const },
-      ]);
-    },
-    [removeSong],
-  );
+  const menuActions = useMemo<SheetAction[]>(() => {
+    if (!menuTrack) return [];
+    const key = trackKey(menuTrack);
+    const liked = likedIdsRef.current.has(key);
+
+    const actions: SheetAction[] = [
+      {
+        label: liked ? 'Убрать из понравившихся' : 'Нравится',
+        icon: liked ? 'heart-broken' : 'favorite',
+        onPress: () => toggleLike(key),
+      },
+    ];
+
+    // Удалять можно только то, что лежит в медиатеке: у треков,
+    // играющих по ссылке, удалять на сервере нечего.
+    if (menuTrack.source === 'library') {
+      actions.push({
+        label: 'Удалить из медиатеки',
+        icon: 'delete-outline',
+        destructive: true,
+        onPress: () =>
+          Alert.alert('Удалить трек?', 'Файл и запись исчезнут безвозвратно.', [
+            { text: 'Отмена', style: 'cancel' },
+            {
+              text: 'Удалить',
+              style: 'destructive',
+              onPress: () => removeSong.mutate(menuTrack.id),
+            },
+          ]),
+      });
+    }
+
+    return actions;
+  }, [menuTrack, removeSong]);
 
   const renderItem = useCallback(
     ({ item, index }: { item: Track; index: number }) => (
@@ -228,6 +231,14 @@ export default function LibraryScreen() {
           }
         />
       )}
+
+      <ActionSheet
+        visible={menuTrack !== null}
+        title={menuTrack?.title ?? ''}
+        subtitle={menuTrack?.author}
+        actions={menuActions}
+        onClose={() => setMenuTrack(null)}
+      />
     </View>
   );
 }

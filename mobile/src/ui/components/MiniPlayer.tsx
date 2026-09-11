@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useProgress } from 'react-native-track-player';
 import { Thumb } from './Thumb';
+import { useCachedCover } from '../../features/useMusicMeta';
 import { useTheme, useThemedStyles, type Theme } from '../theme';
 import { useCurrentTrack } from '../../player/queueStore';
 import { usePlayback } from '../../player/usePlayback';
@@ -19,7 +20,13 @@ export const MiniPlayer = memo(function MiniPlayer() {
   const styles = useThemedStyles(makeStyles);
   const { isPlaying, isBuffering, toggle, next } = usePlayback();
 
+  // Та же обложка, что в списках и в плеере: без этого мини-плеер оставался
+  // единственным местом с кадром клипа вместо обложки альбома.
+  const cached = useCachedCover(track);
+
   if (!track) return null;
+
+  const cover = cached ?? track.artwork;
 
   return (
     <View style={styles.wrapper}>
@@ -30,7 +37,7 @@ export const MiniPlayer = memo(function MiniPlayer() {
         onPress={() => router.push('/player')}
         android_ripple={{ color: 'rgba(128,128,128,0.14)' }}
       >
-        <Thumb uri={track.artwork} seed={track.title} size={40} />
+        <Thumb uri={cover} seed={track.title} size={40} />
 
         <View style={styles.text}>
           <Text numberOfLines={1} style={styles.title}>
