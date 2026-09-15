@@ -2,6 +2,7 @@ import TrackPlayer, { Event } from 'react-native-track-player';
 import { useQueue, savePosition } from './queueStore';
 import { recordListening } from '../local/stats';
 import { creditSeconds, endPlay } from '../local/plays';
+import { getSettings } from '../local/settings';
 
 /**
  * Фоновый сервис плеера.
@@ -53,7 +54,13 @@ export async function PlaybackService(): Promise<void> {
   TrackPlayer.addEventListener(Event.PlaybackQueueEnded, () => {
     const { index, queue, repeat } = useQueue.getState();
     const hasMore = index < queue.length - 1;
-    if (hasMore || repeat === 'all') void useQueue.getState().playNext();
+
+    // Зовём playNext и в том случае, когда дальше ничего нет: он умеет
+    // дотянуть очередь похожим. Без этой ветки автопродолжение молчало бы
+    // ровно там, где оно и нужно, — в самом конце.
+    if (hasMore || repeat === 'all' || getSettings().autoRadio) {
+      void useQueue.getState().playNext();
+    }
   });
 
   /**

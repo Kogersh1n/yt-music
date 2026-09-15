@@ -15,10 +15,10 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.8.12:8000';
 const needsCleartext = API_URL.startsWith('http://');
 
 const config: ExpoConfig = {
-  name: 'YT Music',
+  name: 'Qaimaq',
   slug: 'ytmusic',
   scheme: 'ytmusic',
-  version: '1.9.0',
+  version: '1.10.0',
   orientation: 'portrait',
   userInterfaceStyle: 'dark',
   backgroundColor: '#030303',
@@ -26,7 +26,7 @@ const config: ExpoConfig = {
 
   android: {
     package: 'com.duklet.ytmusic',
-    versionCode: 24,
+    versionCode: 25,
     predictiveBackGestureEnabled: false,
     adaptiveIcon: {
       backgroundColor: '#030303',

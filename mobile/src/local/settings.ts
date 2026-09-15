@@ -30,6 +30,15 @@ export interface AppSettings {
    * выключено по умолчанию.
    */
   audioOffload: boolean;
+  /**
+   * Продолжать очередь похожими треками, когда она кончилась.
+   *
+   * Без этого выдача поиска играет по кругу одно и то же: очередь — это
+   * ровно тридцать найденных треков, дальше тишина или повтор. Включено
+   * по умолчанию, потому что «кончилось и замолчало» люди воспринимают
+   * как поломку, а не как задумку.
+   */
+  autoRadio: boolean;
 }
 
 const DEFAULTS: AppSettings = {
@@ -37,6 +46,7 @@ const DEFAULTS: AppSettings = {
   haptics: true,
   skipSilence: false,
   audioOffload: false,
+  autoRadio: true,
 };
 
 let settings: AppSettings = { ...DEFAULTS, ...readJSON<Partial<AppSettings>>(KEY, {}) };

@@ -59,6 +59,7 @@ export default function ProfileScreen() {
   );
 
   const [cache, setCache] = useState<CacheUsage | null>(null);
+  const [storageOpen, setStorageOpen] = useState(false);
   const [measuring, setMeasuring] = useState(false);
 
   /** Обход файловой системы — делаем по входу на экран, а не на каждый рендер. */
@@ -178,79 +179,21 @@ export default function ProfileScreen() {
 
       </View>
 
-      {/* --- Активность ---
-          Раньше статистика была раскидана: счётчики в карточке профиля,
-          топ исполнителей отдельной секцией, итоги месяца третьей ссылкой.
-          Всё это про одно и то же — что и сколько слушали, — и стоять
-          должно рядом. */}
-      <Text style={styles.section}>Активность</Text>
+      {/* --- Прослушивание ---
+          Переехало на отдельный экран. В профиле оно стояло между темами
+          и гигабайтами кэша: три разных разговора подряд, и ни один
+          не дочитывался. */}
+      <Text style={styles.section}>Прослушивание</Text>
 
-      <View style={styles.card}>
-        <View style={styles.stats}>
-          <Stat value={formatListening(allTime.totalSeconds)} label="прослушано" />
-          <Stat value={String(allTime.totalPlays)} label="запусков" />
-          <Stat value={String(allTime.uniqueTracks)} label="разных треков" />
-          <Stat value={String(allTime.uniqueArtists)} label="исполнителей" />
-        </View>
-
-        {allTime.topArtists.length > 0 ? (
-          <>
-            <Text style={styles.subheading}>Чаще всего</Text>
-            {allTime.topArtists.map((artist, index) => (
-              <View key={artist.author} style={styles.rank}>
-                <Text style={styles.rankNumber}>{index + 1}</Text>
-                <Text numberOfLines={1} style={styles.rankName}>
-                  {artist.author}
-                </Text>
-                <Text style={styles.rankValue}>{formatListening(artist.seconds)}</Text>
-              </View>
-            ))}
-          </>
-        ) : null}
-
-        {allTime.topTracks.length > 0 ? (
-          <>
-            <Text style={styles.subheading}>Любимые треки</Text>
-            {allTime.topTracks.map((track, index) => (
-              <View key={track.trackId} style={styles.rank}>
-                <Text style={styles.rankNumber}>{index + 1}</Text>
-                <View style={styles.rankText}>
-                  <Text numberOfLines={1} style={styles.rankName}>
-                    {track.title}
-                  </Text>
-                  <Text numberOfLines={1} style={styles.rankSub}>
-                    {track.author}
-                  </Text>
-                </View>
-                <Text style={styles.rankValue}>
-                  {track.plays} {plural(track.plays, 'раз', 'раза', 'раз')}
-                </Text>
-              </View>
-            ))}
-          </>
-        ) : null}
-
-        {allTime.totalPlays === 0 ? (
-          <Text style={styles.emptyHint}>
-            Пока нечего показать — включите что-нибудь, и здесь появятся цифры.
+      <Pressable style={styles.link} onPress={() => router.push('/activity')}>
+        <MaterialIcons name="bar-chart" size={22} color={theme.colors.text} />
+        <View style={styles.linkText}>
+          <Text style={styles.linkTitle}>Что вы слушали</Text>
+          <Text style={styles.linkHint}>
+            {allTime.totalPlays > 0
+              ? `${formatListening(allTime.totalSeconds)} · ${allTime.uniqueArtists} ${plural(allTime.uniqueArtists, 'исполнитель', 'исполнителя', 'исполнителей')}`
+              : 'Пока пусто — включите что-нибудь'}
           </Text>
-        ) : null}
-      </View>
-
-      <Pressable style={styles.link} onPress={() => router.push('/recap')}>
-        <MaterialIcons name="insights" size={22} color={theme.colors.text} />
-        <View style={styles.linkText}>
-          <Text style={styles.linkTitle}>Итоги месяца</Text>
-          <Text style={styles.linkHint}>То же самое, но по месяцам</Text>
-        </View>
-        <MaterialIcons name="chevron-right" size={22} color={theme.colors.textFaint} />
-      </Pressable>
-
-      <Pressable style={styles.link} onPress={() => router.push('/history')}>
-        <MaterialIcons name="history" size={22} color={theme.colors.text} />
-        <View style={styles.linkText}>
-          <Text style={styles.linkTitle}>История прослушивания</Text>
-          <Text style={styles.linkHint}>По дням, и на чём строятся подсказки</Text>
         </View>
         <MaterialIcons name="chevron-right" size={22} color={theme.colors.textFaint} />
       </Pressable>
@@ -275,8 +218,27 @@ export default function ProfileScreen() {
         <MaterialIcons name="chevron-right" size={22} color={theme.colors.textFaint} />
       </Pressable>
 
-      {/* --- Память --- */}
-      <Text style={styles.section}>Память</Text>
+      {/* --- Память ---
+          Свёрнута по умолчанию. Кнопка «Очистить кэш» — необратимое
+          действие, и держать её всегда на виду, рядом с обычными
+          настройками, значит однажды получить нажатие мимо. Тому, кто
+          пришёл за местом на диске, лишнее нажатие ничего не стоит. */}
+      <Pressable style={styles.link} onPress={() => setStorageOpen((open) => !open)}>
+        <MaterialIcons name="sd-storage" size={22} color={theme.colors.text} />
+        <View style={styles.linkText}>
+          <Text style={styles.linkTitle}>Память</Text>
+          <Text style={styles.linkHint}>
+            {cache ? `Занято ${formatBytes(cache.totalBytes)}` : 'Кэш обложек и аудио'}
+          </Text>
+        </View>
+        <MaterialIcons
+          name={storageOpen ? 'expand-less' : 'expand-more'}
+          size={22}
+          color={theme.colors.textFaint}
+        />
+      </Pressable>
+
+      {storageOpen ? (
       <View style={styles.card}>
         {cache === null ? (
           <View style={styles.measuring}>
@@ -309,10 +271,20 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
       </View>
+      ) : null}
 
       {/* --- Воспроизведение --- */}
       <Text style={styles.section}>Воспроизведение</Text>
       <View style={styles.card}>
+        <Toggle
+          title="Продолжать похожим"
+          hint="Когда очередь кончилась, дописывать треки того же круга вместо тишины"
+          value={settings.autoRadio}
+          onChange={(autoRadio) => {
+            updateSettings({ autoRadio });
+            tapMedium();
+          }}
+        />
         <Toggle
           title="Пропускать тишину"
           hint="Обрезает паузы в начале и конце треков"
@@ -382,16 +354,6 @@ function OfflineRow() {
   );
 }
 
-function Stat({ value, label }: { value: string; label: string }) {
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <View style={styles.stat}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
-
 function UsageRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   const styles = useThemedStyles(makeStyles);
   return (
@@ -433,32 +395,7 @@ function Toggle({
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
-    subheading: {
-      ...t.type.meta,
-      color: t.colors.textFaint,
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-      marginTop: t.spacing.md,
-      marginBottom: t.spacing.xs,
-    },
-    rankText: { flex: 1 },
-    rankSub: { ...t.type.meta, color: t.colors.textFaint },
-    emptyHint: { ...t.type.meta, color: t.colors.textDim, marginTop: t.spacing.sm },
     likesLine: { ...t.type.meta, color: t.colors.textDim, marginTop: t.spacing.sm },
-    rank: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: t.spacing.md,
-      paddingVertical: t.spacing.sm,
-    },
-    rankNumber: {
-      ...t.type.meta,
-      color: t.colors.textFaint,
-      width: 16,
-      fontVariant: ['tabular-nums'],
-    },
-    rankName: { ...t.type.body, color: t.colors.text, flex: 1 },
-    rankValue: { ...t.type.meta, color: t.colors.textDim, fontVariant: ['tabular-nums'] },
     offline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     offlineClear: { ...t.type.meta, color: t.colors.danger },
     screen: { flex: 1, backgroundColor: t.colors.bg },
@@ -504,11 +441,6 @@ const makeStyles = (t: Theme) =>
     },
     accountLabel: { ...t.type.label, color: t.colors.brand },
     accountLabelDanger: { color: t.colors.danger },
-
-    stats: { flexDirection: 'row', flexWrap: 'wrap' },
-    stat: { width: '50%', paddingVertical: t.spacing.sm },
-    statValue: { ...t.type.section, fontSize: 19, color: t.colors.text },
-    statLabel: { ...t.type.meta, color: t.colors.textDim },
 
     link: {
       flexDirection: 'row',

@@ -8,6 +8,8 @@ import { recordPlay } from '../local/stats';
 import { beginPlay } from '../local/plays';
 import { rememberTrack } from '../local/audioCache';
 import { resolveStreamUrl, invalidateStreamUrl } from './streamUrls';
+import { relatedTracks } from '../api/radio';
+import { getSettings } from '../local/settings';
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
@@ -116,7 +118,14 @@ export const useQueue = create<QueueState & QueueActions>((set, get) => ({
 
   playNext: async () => {
     const { index, queue, repeat } = get();
-    const isLast = index >= queue.length - 1;
+    let isLast = index >= queue.length - 1;
+
+    // Очередь кончилась — дотягиваем её похожим, вместо того чтобы
+    // замолчать или пойти на второй круг по той же выдаче поиска.
+    if (isLast && repeat === 'off' && getSettings().autoRadio) {
+      await extendWithRadio(get);
+      isLast = get().index >= get().queue.length - 1;
+    }
 
     if (isLast && repeat !== 'all') return;
     const nextIndex = isLast ? 0 : index + 1;
@@ -396,6 +405,30 @@ async function loadCurrent(
       isLoading: false,
       error: error instanceof Error ? error.message : 'Не удалось начать воспроизведение',
     });
+  }
+}
+
+/**
+ * Дотянуть очередь похожими треками.
+ *
+ * Затравка — то, что играет сейчас: это последнее, что человек выбрал
+ * сам, и продолжать логично от него. Ошибку глушим: не дотянули —
+ * очередь просто закончится, как раньше.
+ *
+ * Идёт через appendRadio, поэтому уже слышанное в очереди не дублируется
+ * и порядок остаётся осмысленным.
+ */
+async function extendWithRadio(get: () => QueueState & QueueActions): Promise<void> {
+  const state = get();
+  const current = state.queue[state.index];
+  const videoId = current?.youtubeId;
+  if (!videoId) return;
+
+  try {
+    const similar = await relatedTracks(videoId);
+    if (similar.length > 0) get().appendRadio(similar);
+  } catch {
+    // Радио недоступно — ведём себя как до этой возможности.
   }
 }
 

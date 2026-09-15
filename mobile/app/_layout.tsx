@@ -187,6 +187,12 @@ function Shell({ playerError }: { playerError: string | null }) {
           name="history"
           options={{ animation: theme.motion.scale === 0 ? 'none' : 'slide_from_right' }}
         />
+
+
+        <Stack.Screen
+          name="activity"
+          options={{ animation: theme.motion.scale === 0 ? 'none' : 'slide_from_right' }}
+        />
         <Stack.Screen
           name="theme-editor"
           options={{ animation: theme.motion.scale === 0 ? 'none' : 'slide_from_right' }}

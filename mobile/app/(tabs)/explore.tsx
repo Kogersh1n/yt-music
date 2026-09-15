@@ -20,6 +20,7 @@ import { useIsSignedIn } from '../../src/auth/session';
 import { useDebounced } from '../../src/features/useDebounced';
 import { usePlayback } from '../../src/player/usePlayback';
 import { enqueue } from '../../src/features/importQueue';
+import { useRecommendations } from '../../src/features/recommend';
 import { ImportPanel } from '../../src/ui/components/ImportPanel';
 import type { Track } from '../../src/api/types';
 
@@ -41,6 +42,20 @@ export default function ExploreScreen() {
 
   const youtube = useYouTubeSearch(debouncedQuery, !isDemo);
   const results = youtube.tracks;
+
+  // Пустой поиск — не повод показывать пустоту: подсказки здесь уместнее
+  // приглашения что-нибудь ввести, и это та же лента, что на главной.
+  const suggestions = useRecommendations();
+
+  // Свежий список держим в ref, а не в замыкании: иначе обработчик
+  // меняется на каждый рендер и тянет за собой перерисовку всех строк.
+  const suggestionsRef = useRef(suggestions.tracks);
+  suggestionsRef.current = suggestions.tracks;
+
+  const playSuggestion = useCallback(
+    (index: number) => play(suggestionsRef.current, index),
+    [play],
+  );
 
   /**
    * Выбранные треки.
@@ -218,6 +233,9 @@ export default function ExploreScreen() {
         error={youtube.error}
         renderItem={renderItem}
         contentContainerStyle={listContent}
+        suggestions={suggestions.tracks}
+        suggestionsLoading={suggestions.isLoading}
+        onPlaySuggestion={playSuggestion}
       />
     </View>
   );
@@ -231,6 +249,9 @@ function Body({
   error,
   renderItem,
   contentContainerStyle,
+  suggestions,
+  suggestionsLoading,
+  onPlaySuggestion,
 }: {
   query: string;
   isDemo: boolean;
@@ -239,9 +260,37 @@ function Body({
   error: Error | null;
   renderItem: ({ item, index }: { item: Track; index: number }) => React.ReactElement;
   contentContainerStyle: object;
+  suggestions: readonly Track[];
+  suggestionsLoading: boolean;
+  onPlaySuggestion: (index: number) => void;
 }) {
   const styles = useThemedStyles(makeStyles);
+
   if (!query.trim()) {
+    if (suggestionsLoading) return <TrackListSkeleton rows={7} />;
+
+    if (suggestions.length > 0) {
+      return (
+        <FlashList
+          data={suggestions as Track[]}
+          renderItem={({ item, index }) => (
+            <TrackRow track={item} index={index} onPress={onPlaySuggestion} />
+          )}
+          keyExtractor={keyExtractor}
+          contentContainerStyle={contentContainerStyle}
+          keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={
+            <View style={styles.suggestHead}>
+              <Text style={styles.suggestTitle}>Может понравиться</Text>
+              <Text style={styles.suggestHint}>
+                Собрано по тому, что вы слушаете. Ничего из этого вы ещё не включали.
+              </Text>
+            </View>
+          }
+        />
+      );
+    }
+
     return (
       <EmptyState
         icon="⌕"
@@ -282,6 +331,14 @@ function Body({
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: t.colors.bg },
+    suggestHead: {
+      paddingHorizontal: t.layout.screenPadding,
+      paddingTop: t.spacing.sm,
+      paddingBottom: t.spacing.md,
+      gap: 2,
+    },
+    suggestTitle: { ...t.type.section, color: t.colors.text },
+    suggestHint: { ...t.type.meta, color: t.colors.textDim, lineHeight: 17 },
     searchWrap: {
       flexDirection: 'row',
       alignItems: 'center',
