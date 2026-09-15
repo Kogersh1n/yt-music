@@ -1,6 +1,7 @@
 import { memo, useCallback, useRef } from 'react';
-import { FlatList, type ListRenderItemInfo, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, type ListRenderItemInfo, StyleSheet, Text, View } from 'react-native';
 import { Thumb } from './Thumb';
+import { PressableScale } from './PressableScale';
 import { useTheme, useThemedStyles, type Theme } from '../theme';
 import type { Track } from '../../api/types';
 
@@ -11,11 +12,18 @@ import type { Track } from '../../api/types';
 
 interface CarouselProps {
   title: string;
+  /** Вторая строка заголовка — откуда взялась подборка. */
+  subtitle?: string;
   tracks: readonly Track[];
   onPressTrack: (tracks: readonly Track[], index: number) => void;
 }
 
-export const Carousel = memo(function Carousel({ title, tracks, onPressTrack }: CarouselProps) {
+export const Carousel = memo(function Carousel({
+  title,
+  subtitle,
+  tracks,
+  onPressTrack,
+}: CarouselProps) {
   const theme = useTheme();
   const styles = useThemedStyles(makeStyles);
 
@@ -58,7 +66,10 @@ export const Carousel = memo(function Carousel({ title, tracks, onPressTrack }: 
 
   return (
     <View style={styles.section}>
-      <Text style={styles.title}>{title}</Text>
+      <View style={styles.heading}>
+        <Text style={styles.title}>{title}</Text>
+        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      </View>
       <FlatList
         data={tracks as Track[]}
         renderItem={renderItem}
@@ -87,7 +98,7 @@ const Card = memo(function Card({
   const handlePress = useCallback(() => onPress(index), [onPress, index]);
 
   return (
-    <Pressable onPress={handlePress} style={styles.card}>
+    <PressableScale onPress={handlePress} style={styles.card} depth={0.96}>
       <Thumb
         track={track}
         size={theme.layout.cardWidth}
@@ -99,14 +110,16 @@ const Card = memo(function Card({
       <Text numberOfLines={1} style={styles.cardMeta}>
         {track.author}
       </Text>
-    </Pressable>
+    </PressableScale>
   );
 });
 
 const makeStyles = (t: Theme) =>
   StyleSheet.create({
     section: { gap: t.spacing.md },
-    title: { ...t.type.section, color: t.colors.text, paddingHorizontal: t.layout.screenPadding },
+    title: { ...t.type.section, color: t.colors.text },
+    heading: { paddingHorizontal: t.layout.screenPadding, gap: 1 },
+    subtitle: { ...t.type.meta, color: t.colors.textDim },
     list: { paddingHorizontal: t.layout.screenPadding, gap: t.spacing.md },
     card: { width: t.layout.cardWidth, gap: t.spacing.xs },
     cardTitle: { ...t.type.trackTitle, color: t.colors.text, marginTop: t.spacing.xs },

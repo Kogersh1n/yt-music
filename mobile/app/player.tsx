@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -17,6 +17,7 @@ import { useCurrentTrack, useQueue } from '../src/player/queueStore';
 import { usePlayback } from '../src/player/usePlayback';
 import { useIsLiked, toggleLike } from '../src/local/likes';
 import { useMusicCover } from '../src/features/useMusicMeta';
+import { relatedTracks } from '../src/api/radio';
 import { trackKey } from '../src/api/types';
 
 /**
@@ -41,6 +42,31 @@ export default function PlayerScreen() {
 
   const liked = useIsLiked(track ? trackKey(track) : '');
   const format = useTrackFormat(track);
+
+  /**
+   * Радио от текущего трека — продолжить похожим, когда очередь кончится
+   * или просто надоела. Текущий трек остаётся первым и не перезапускается:
+   * playNow с той же позицией сбросил бы воспроизведение, а человек просил
+   * не «начать заново», а «дальше пусть будет похожее».
+   */
+  const [radioBusy, setRadioBusy] = useState(false);
+  const startRadio = useCallback(async () => {
+    const videoId = track?.youtubeId;
+    if (!videoId || radioBusy) return;
+
+    setRadioBusy(true);
+    try {
+      const similar = await relatedTracks(videoId);
+      if (similar.length > 0) {
+        useQueue.getState().appendRadio(similar);
+      }
+    } catch {
+      // Радио не собралось — молча остаёмся с тем, что играет.
+      // Отдельная ошибка на экране тут была бы шумом: ничего не сломалось.
+    } finally {
+      setRadioBusy(false);
+    }
+  }, [track?.youtubeId, radioBusy]);
 
   // Обложка из YouTube Music, если она нашлась.
   //
@@ -145,6 +171,21 @@ export default function PlayerScreen() {
           >
             <MaterialIcons name="lyrics" size={22} color={theme.colors.text} />
           </Pressable>
+
+          {track.youtubeId ? (
+            <Pressable
+              onPress={() => void startRadio()}
+              hitSlop={12}
+              style={styles.action}
+              accessibilityLabel="Продолжить похожими треками"
+            >
+              <MaterialIcons
+                name="radio"
+                size={22}
+                color={radioBusy ? theme.colors.textFaint : theme.colors.text}
+              />
+            </Pressable>
+          ) : null}
 
           <Pressable
             onPress={() => toggleLike(track)}

@@ -14,7 +14,8 @@
     "check:themes": "tsx src/ui/theme/__tests__/theme.check.ts",
     "themes:export": "tsx scripts/export-themes.ts",
     "check:visual": "tsx src/features/__tests__/visual.check.ts",
-    "check": "npm run check:themes && npm run check:visual"
+    "check": "npm run check:themes && npm run check:visual && npm run check:taste",
+    "check:taste": "tsx src/features/__tests__/taste.check.ts"
   },
   "dependencies": {
     "@babel/core": "^7.29.0",

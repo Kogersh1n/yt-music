@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -8,6 +9,7 @@ import { TrackRow } from '../../src/ui/components/TrackRow';
 import { CarouselSkeleton, ErrorState, EmptyState } from '../../src/ui/components/states';
 import { useTheme, useThemedStyles, type Theme } from '../../src/ui/theme';
 import { useLibrary } from '../../src/features/useLibrary';
+import { useRecommendations } from '../../src/features/recommend';
 import { useRecents } from '../../src/local/recents';
 import { usePlayback } from '../../src/player/usePlayback';
 import { prefetchStreamUrl } from '../../src/player/streamUrls';
@@ -27,6 +29,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { tracks, isDemo, isLoading, error, refetch, isRefetching } = useLibrary();
   const recents = useRecents();
+  const suggestions = useRecommendations();
 
   // Прогрев ссылки на самое вероятное первое нажатие.
   //
@@ -103,15 +106,40 @@ export default function HomeScreen() {
           <CarouselSkeleton />
           <CarouselSkeleton />
         </View>
-      ) : tracks.length === 0 ? (
+      ) : tracks.length === 0 && recents.length === 0 && suggestions.tracks.length === 0 ? (
         <EmptyState
           title="Пока пусто"
-          hint="Найдите трек на вкладке «Обзор» — его можно слушать сразу, не добавляя в медиатеку."
+          hint="Найдите трек на вкладке «Обзор» — его можно слушать сразу, не добавляя в медиатеку. Через несколько прослушиваний здесь появятся подсказки."
         />
       ) : (
         <>
           {recents.length > 0 ? (
             <Carousel title="Слушать снова" tracks={recents} onPressTrack={handlePlay} />
+          ) : null}
+
+          {/*
+            Подсказки идут выше медиатеки намеренно: в медиатеке пара треков,
+            а здесь — то, чего пользователь ещё не слышал. Раздела не будет
+            вовсе, пока не наберётся история: см. features/recommend.ts.
+          */}
+          {suggestions.isLoading ? (
+            <CarouselSkeleton />
+          ) : suggestions.tracks.length > 0 ? (
+            /* Подсказки приезжают позже остального экрана — проявляем их,
+               а не подставляем рывком. Длительность берём у темы: при
+               motion.scale = 0 появление становится мгновенным. */
+            <Animated.View entering={FadeIn.duration(Math.round(260 * theme.motion.scale))}>
+              <Carousel
+                title="Для вас"
+                subtitle={
+                  suggestions.topArtist
+                    ? `По мотивам того, что вы слушаете — ${suggestions.topArtist} и не только`
+                    : undefined
+                }
+                tracks={suggestions.tracks}
+                onPressTrack={handlePlay}
+              />
+            </Animated.View>
           ) : null}
 
           {newest.length > 0 ? (

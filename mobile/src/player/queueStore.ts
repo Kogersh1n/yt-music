@@ -81,6 +81,8 @@ interface QueueActions {
   toggleShuffle: () => Promise<void>;
   cycleRepeat: () => Promise<void>;
   addToQueue: (track: Track) => void;
+  /** Дописать похожие треки сразу за текущим — «продолжить в том же духе». */
+  appendRadio: (tracks: readonly Track[]) => void;
   removeFromQueue: (index: number) => void;
   moveInQueue: (from: number, to: number) => void;
   /** Реакция на смену активного трека внутри движка. */
@@ -206,6 +208,25 @@ export const useQueue = create<QueueState & QueueActions>((set, get) => ({
     if (queue.some((item) => item.id === track.id)) return;
     set({ queue: [...queue, track] });
     persist();
+  },
+
+  appendRadio: (tracks) => {
+    const { queue, index } = get();
+    if (tracks.length === 0) return;
+
+    // Того, что уже в очереди, не добавляем: радио любит возвращаться
+    // к тому, с чего началось, и без этого следом за треком встал бы он сам.
+    const known = new Set(queue.map((item) => item.id));
+    const fresh = tracks.filter((track) => !known.has(track.id));
+    if (fresh.length === 0) return;
+
+    // Вставляем сразу после играющего, а не в конец: в очереди может
+    // лежать вся выдача поиска, и «дальше похожее» означает «дальше»,
+    // а не «когда-нибудь через тридцать треков».
+    const next = [...queue.slice(0, index + 1), ...fresh, ...queue.slice(index + 1)];
+    set({ queue: next });
+    persist();
+    void refillLookahead(get(), loadGeneration);
   },
 
   removeFromQueue: (target) => {

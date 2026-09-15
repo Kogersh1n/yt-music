@@ -1,3 +1,4 @@
+import { looksLikeSame } from './songText';
 import {
   collect,
   findFirst,
@@ -22,7 +23,7 @@ import {
  *   находим аудиозапись и дальше работаем уже с ней.
  */
 
-const MUSIC: InnertubeClient = {
+export const MUSIC: InnertubeClient = {
   name: 'WEB_REMIX',
   version: '1.20250101.01.00',
   id: '67',
@@ -83,54 +84,6 @@ function columnText(column: unknown): string {
   );
   if (!runs) return '';
   return runs.map((run) => run.text ?? '').join('');
-}
-
-/**
- * Слова, которые ничего не говорят о песне.
- *
- * К названиям на ютубе приписывают всё это пачками, и при сравнении
- * они создают ложные совпадения: «official» есть в половине роликов.
- */
-const NOISE = new Set([
-  'official', 'video', 'audio', 'lyrics', 'lyric', 'music', 'mv', 'hd', 'hq',
-  'remastered', 'version', 'feat', 'ft', 'prod', 'клип', 'клипец', 'текст',
-  'премьера', 'песня',
-]);
-
-/** Значимые слова строки: без пунктуации, скобок, шума и годов. */
-function tokens(value: string): Set<string> {
-  return new Set(
-    value
-      .toLowerCase()
-      .replace(/[([{].*?[)\]}]/g, ' ')
-      .replace(/[^\p{L}\p{N}]+/gu, ' ')
-      .split(' ')
-      .filter((word) => word.length >= 3 && !NOISE.has(word) && !/^\d{4}$/.test(word)),
-  );
-}
-
-/**
- * Похоже ли найденное на то, что искали.
- *
- * Без этой проверки выдача принималась любая: на запрос из несуществующих
- * слов YouTube Music всё равно что-нибудь возвращает, и приложение
- * показывало чужую обложку и чужой текст, ничем не выдавая ошибки.
- *
- * Сравниваем по значимым словам, а не по строке целиком: у ролика
- * к названию приписано «(Клипец, 2020)», у аудиозаписи — нет,
- * и точного совпадения ждать нельзя никогда.
- */
-function looksLikeSame(query: string, found: string): boolean {
-  const want = tokens(query);
-  const got = tokens(found);
-  if (want.size === 0 || got.size === 0) return false;
-
-  let hits = 0;
-  for (const word of got) if (want.has(word)) hits += 1;
-
-  // Половина значимых слов найденного должна встречаться в запросе.
-  // Одного слова мало: «Meant To Be» совпало бы с «Be Yourself».
-  return hits / got.size >= 0.5;
 }
 
 /**

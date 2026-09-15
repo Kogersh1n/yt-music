@@ -246,6 +246,15 @@ export default function ProfileScreen() {
         <MaterialIcons name="chevron-right" size={22} color={theme.colors.textFaint} />
       </Pressable>
 
+      <Pressable style={styles.link} onPress={() => router.push('/history')}>
+        <MaterialIcons name="history" size={22} color={theme.colors.text} />
+        <View style={styles.linkText}>
+          <Text style={styles.linkTitle}>История прослушивания</Text>
+          <Text style={styles.linkHint}>По дням, и на чём строятся подсказки</Text>
+        </View>
+        <MaterialIcons name="chevron-right" size={22} color={theme.colors.textFaint} />
+      </Pressable>
+
       {/* --- Оформление --- */}
       <Text style={styles.section}>Оформление</Text>
       <Pressable style={styles.link} onPress={() => router.push('/settings')}>
@@ -517,9 +526,22 @@ const makeStyles = (t: Theme) =>
     linkHint: { ...t.type.meta, color: t.colors.textDim },
 
     measuring: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm },
-    usageRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    usageLabel: { ...t.type.meta, color: t.colors.textDim },
-    usageValue: { ...t.type.meta, color: t.colors.text, fontVariant: ['tabular-nums'] },
+    // Зазор и flex у подписи обязательны: без них длинная строка
+    // («Треки офлайн (5 из 5)») дорастала до значения вплотную,
+    // и «(5 из 5)32,3 МБ» читалось как одно слово.
+    usageRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: t.spacing.sm,
+    },
+    usageLabel: { ...t.type.meta, color: t.colors.textDim, flex: 1 },
+    usageValue: {
+      ...t.type.meta,
+      color: t.colors.text,
+      fontVariant: ['tabular-nums'],
+      flexShrink: 0,
+    },
     usageStrong: { color: t.colors.text, fontWeight: '600' },
 
     cacheButtons: { flexDirection: 'row', gap: t.spacing.sm, marginTop: t.spacing.xs },

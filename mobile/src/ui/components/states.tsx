@@ -73,14 +73,26 @@ export const CarouselSkeleton = memo(function CarouselSkeleton() {
   const size = theme.layout.cardWidth;
 
   return (
-    <View style={styles.skeletonCarousel}>
-      {Array.from({ length: 4 }, (_, i) => (
-        <View key={i} style={{ gap: theme.spacing.sm }}>
-          <Shimmer style={{ width: size, height: size, borderRadius: theme.radius.card }} />
-          <Shimmer style={{ height: 11, borderRadius: 3, width: size * 0.8 }} />
-          <Shimmer style={{ height: 9, borderRadius: 3, width: size * 0.5 }} />
-        </View>
-      ))}
+    <View style={styles.skeletonSection}>
+      {/* Полоска под заголовок. Без неё при подмене скелета настоящей
+          каруселью всё, что ниже, прыгает вниз на высоту строки. */}
+      <Shimmer
+        style={{
+          height: 15,
+          borderRadius: 4,
+          width: 140,
+          marginHorizontal: theme.layout.screenPadding,
+        }}
+      />
+      <View style={styles.skeletonCarousel}>
+        {Array.from({ length: 4 }, (_, i) => (
+          <View key={i} style={{ gap: theme.spacing.sm }}>
+            <Shimmer style={{ width: size, height: size, borderRadius: theme.radius.card }} />
+            <Shimmer style={{ height: 11, borderRadius: 3, width: size * 0.8 }} />
+            <Shimmer style={{ height: 9, borderRadius: 3, width: size * 0.5 }} />
+          </View>
+        ))}
+      </View>
     </View>
   );
 });
@@ -145,6 +157,7 @@ const makeStyles = (t: Theme) =>
       paddingVertical: t.spacing.sm,
     },
     skeletonText: { flex: 1, gap: t.spacing.sm },
+    skeletonSection: { gap: t.spacing.sm },
     skeletonCarousel: {
       flexDirection: 'row',
       gap: t.spacing.md,
