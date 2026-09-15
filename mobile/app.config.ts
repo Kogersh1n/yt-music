@@ -18,7 +18,7 @@ const config: ExpoConfig = {
   name: 'Qaimaq',
   slug: 'ytmusic',
   scheme: 'ytmusic',
-  version: '1.10.1',
+  version: '1.11.0',
   orientation: 'portrait',
   userInterfaceStyle: 'dark',
   backgroundColor: '#030303',
@@ -26,7 +26,7 @@ const config: ExpoConfig = {
 
   android: {
     package: 'com.duklet.ytmusic',
-    versionCode: 26,
+    versionCode: 27,
     predictiveBackGestureEnabled: false,
     adaptiveIcon: {
       backgroundColor: '#030303',

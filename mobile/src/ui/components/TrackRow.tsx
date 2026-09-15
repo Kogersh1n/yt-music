@@ -2,6 +2,7 @@ import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Thumb } from './Thumb';
+import { TrackTitle } from './TrackTitle';
 import { SwipeableRow } from './SwipeableRow';
 import { NowPlayingMark } from './NowPlayingMark';
 import { useTheme, useThemedStyles, formatDuration, type Theme } from '../theme';
@@ -101,9 +102,10 @@ export const TrackRow = memo(function TrackRow({
       {isActive ? <NowPlayingMark /> : null}
 
       <View style={styles.text}>
-        <Text numberOfLines={1} style={[styles.title, isActive && styles.activeTitle]}>
-          {track.title}
-        </Text>
+        <TrackTitle
+          title={track.title}
+          style={[styles.title, isActive && styles.activeTitle]}
+        />
         <Text numberOfLines={1} style={styles.meta}>
           {track.author}
           {track.duration > 0 ? ` • ${formatDuration(track.duration)}` : ''}

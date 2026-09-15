@@ -137,3 +137,128 @@ export function displayArtist(name: string): string {
   const clean = name.replace(CHANNEL_TAIL, '').trim();
   return clean.length > 0 ? clean : name.trim();
 }
+
+/* ------------------------------------------------------------------ */
+/* Название для показа                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Скобки, которые ничего не говорят о песне.
+ *
+ * Отдельно от NOISE выше: тот список нужен для сравнения песен между
+ * собой, и там намеренно выброшено «feat» — при сравнении приглашённый
+ * исполнитель мешает. А на экране «(feat. Кто-то)» выбрасывать нельзя,
+ * это часть названия.
+ */
+const DROP_IN_BRACKETS = [
+  'official', 'video', 'audio', 'lyric', 'lyrics', 'visualizer',
+  'hd', 'hq', '4k', 'mv', 'm/v', 'full', 'hq audio',
+  'клип', 'клипец', 'премьера', 'текст', 'песня', 'официальн',
+];
+
+/**
+ * Скобки, которые говорят о песне главное: это другая запись.
+ *
+ * Их не выбрасываем, а превращаем в бейдж — короткую метку рядом
+ * с названием. Так название становится читаемым, а важное отличие
+ * остаётся на виду: концертная запись и студийная это разные вещи,
+ * и путать их нельзя.
+ */
+const BADGES: [RegExp, string][] = [
+  [/\bremix\b|\bремикс\b/i, 'REMIX'],
+  [/\blive\b|\bживь[её]м\b|\bконцерт\b/i, 'LIVE'],
+  [/\bacoustic\b|\bакустик/i, 'ACOUSTIC'],
+  [/\bcover\b|\bкавер\b/i, 'COVER'],
+  [/\binstrumental\b|\bминус\b/i, 'INSTR'],
+  [/\bslowed\b|\breverb\b/i, 'SLOWED'],
+  [/\bsped\s*up\b/i, 'SPED UP'],
+  [/\bunplugged\b/i, 'UNPLUGGED'],
+  [/\bdemo\b/i, 'DEMO'],
+  [/\bremaster/i, 'REMASTER'],
+];
+
+export interface DisplayTitle {
+  /** Название без приписки исполнителя и без служебных скобок. */
+  title: string;
+  /** Короткая метка вроде LIVE или REMIX, если запись особенная. */
+  badge: string | null;
+}
+
+/** Первый подходящий бейдж для содержимого скобок. */
+function badgeFor(inside: string): string | null {
+  for (const [pattern, label] of BADGES) {
+    if (pattern.test(inside)) return label;
+  }
+  return null;
+}
+
+/**
+ * Описание длительности в скобках: «[1 hour 20 minutes long]»,
+ * «(45 минут)». Формально это осмысленные слова, поэтому общее правило
+ * их пропускает, — но к названию песни они отношения не имеют.
+ */
+const DURATION = /\d+\s*(hour|hr|min|sec|минут|часа?|сек)/i;
+
+/** Только ли служебные слова внутри скобок. */
+function isJunk(inside: string): boolean {
+  const lower = inside.toLowerCase();
+  if (DURATION.test(lower)) return true;
+  const hasUseful = /[\p{L}]/u.test(lower)
+    && !DROP_IN_BRACKETS.some((word) => lower.includes(word));
+  const bare = lower.trim();
+
+  // Голый год — мусор: «(2020)» о песне не говорит ничего.
+  if (/^\d{4}$/.test(bare)) return true;
+
+  // А вот короткое число оставляем. «(2)» у сборника — это том, «(1)»
+  // у перезалива — счётчик копии, и различить их мы не можем. Правило
+  // то же, что и со скобками вообще: выбросить лишнее хуже, чем оставить.
+  if (/^\d{1,3}$/.test(bare)) return false;
+
+  return !hasUseful;
+}
+
+/**
+ * Название трека в том виде, в каком его стоит показывать.
+ *
+ * Зачем. С ютуба название приходит как есть: «Rauf Faik - детство
+ * (Official audio)», а строкой ниже в списке стоит «Rauf & Faik».
+ * Имя написано дважды, а настоящее название из-за этого обрезается
+ * многоточием. Это главная причина, по которой списки выглядели
+ * выгрузкой с ютуба, а не музыкальным приложением.
+ *
+ * Что делаем. Срезаем приписку исполнителя (та же dropArtistPrefix, что
+ * и в отпечатках), выбрасываем служебные скобки и вытаскиваем из
+ * оставшихся бейдж.
+ *
+ * Чего не делаем. Скобки, смысл которых не распознан, оставляем на
+ * месте. Выбросить лишнее хуже, чем оставить: «(Part II)» или
+ * «(feat. Кто-то)» — часть названия, и без них песня становится другой.
+ */
+export function displayTitle(rawTitle: string): DisplayTitle {
+  const withoutArtist = dropArtistPrefix(rawTitle);
+
+  let badge: string | null = null;
+
+  const cleaned = withoutArtist
+    .replace(/[([{]([^)\]}]*)[)\]}]/g, (whole, inside: string) => {
+      const found = badgeFor(inside);
+      if (found) {
+        // Первый по порядку выигрывает: «(Live) (Remastered)» — это
+        // прежде всего концерт.
+        badge = badge ?? found;
+        return ' ';
+      }
+      return isJunk(inside) ? ' ' : whole;
+    })
+    // Осиротевшие разделители на концах после вырезанных скобок.
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s*[-–—|,]\s*$/, '')
+    .trim();
+
+  // Вырезали всё — показываем исходное. Пустая строка в списке хуже
+  // длинной: по ней трек не узнать вовсе.
+  const title = cleaned.length > 0 ? cleaned : withoutArtist.trim() || rawTitle;
+
+  return { title, badge };
+}

@@ -8,6 +8,7 @@ import { Thumb } from '../src/ui/components/Thumb';
 import { EmptyState } from '../src/ui/components/states';
 import { MiniPlayer } from '../src/ui/components/MiniPlayer';
 import { NowPlayingMark } from '../src/ui/components/NowPlayingMark';
+import { TrackTitle } from '../src/ui/components/TrackTitle';
 import { useTheme, useThemedStyles, type Theme } from '../src/ui/theme';
 import { useQueue } from '../src/player/queueStore';
 import type { Track } from '../src/api/types';
@@ -146,9 +147,10 @@ function QueueRow({
       {isActive ? <NowPlayingMark /> : null}
 
       <View style={styles.text}>
-        <Text numberOfLines={1} style={[styles.title, isActive && styles.activeTitle]}>
-          {track.title}
-        </Text>
+        <TrackTitle
+          title={track.title}
+          style={[styles.title, isActive && styles.activeTitle]}
+        />
         <Text numberOfLines={1} style={styles.meta}>
           {track.author}
         </Text>

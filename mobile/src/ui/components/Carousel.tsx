@@ -2,6 +2,7 @@ import { memo, useCallback, useRef } from 'react';
 import { FlatList, type ListRenderItemInfo, StyleSheet, Text, View } from 'react-native';
 import { Thumb } from './Thumb';
 import { PressableScale } from './PressableScale';
+import { TrackTitle } from './TrackTitle';
 import { useTheme, useThemedStyles, type Theme } from '../theme';
 import type { Track } from '../../api/types';
 
@@ -104,9 +105,7 @@ const Card = memo(function Card({
         size={theme.layout.cardWidth}
         rounded={theme.components.thumb === 'square' ? 0 : theme.radius.card}
       />
-      <Text numberOfLines={2} style={styles.cardTitle}>
-        {track.title}
-      </Text>
+      <TrackTitle title={track.title} style={styles.cardTitle} numberOfLines={2} showBadge={false} />
       <Text numberOfLines={1} style={styles.cardMeta}>
         {track.author}
       </Text>

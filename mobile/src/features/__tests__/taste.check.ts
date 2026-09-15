@@ -9,7 +9,7 @@
  */
 import { computeTaste } from '../taste';
 import { refine, interleave } from '../feed';
-import { songSignature, songTitleKey, displayArtist } from '../../api/songText';
+import { songSignature, songTitleKey, displayArtist, displayTitle } from '../../api/songText';
 import type { PlayEvent } from '../../local/plays';
 import type { Track } from '../../api/types';
 
@@ -253,6 +253,52 @@ check('составной канал укорачивается',
 check('обычное имя не трогаем', displayArtist('Rauf & Faik') === 'Rauf & Faik');
 check('имя из одного служебного слова не обнуляется',
   displayArtist('Official') === 'Official');
+
+console.log('— название для показа');
+
+const t1 = displayTitle('Rauf Faik - детство (Official audio)');
+check('приписка исполнителя и служебные скобки уходят',
+  t1.title === 'детство' && t1.badge === null, `«${t1.title}» / ${t1.badge}`);
+
+const t2 = displayTitle('Queen - We Will Rock You (Live Aid 1985)');
+check('концерт становится бейджем',
+  t2.title === 'We Will Rock You' && t2.badge === 'LIVE', `«${t2.title}» / ${t2.badge}`);
+
+const t3 = displayTitle('MORGENSHTERN - YUNG HEFNER (Клипец, 2020)');
+check('русский служебный мусор уходит',
+  t3.title === 'YUNG HEFNER' && t3.badge === null, `«${t3.title}» / ${t3.badge}`);
+
+const t4 = displayTitle('Someone - Song Name (feat. Кто-то)');
+check('feat. остаётся — это часть названия',
+  t4.title === 'Song Name (feat. Кто-то)', `«${t4.title}»`);
+
+const t5 = displayTitle('Artist - Track (Official Video) (Remix)');
+check('из двух скобок остаётся бейдж, мусор уходит',
+  t5.title === 'Track' && t5.badge === 'REMIX', `«${t5.title}» / ${t5.badge}`);
+
+const t6 = displayTitle('Artist - Track (Live) (Remastered)');
+check('первый бейдж выигрывает', t6.badge === 'LIVE', String(t6.badge));
+
+const t7 = displayTitle('Bohemian Rhapsody');
+check('чистое название не портится', t7.title === 'Bohemian Rhapsody' && t7.badge === null);
+
+const t8 = displayTitle('Track (Part II)');
+check('нераспознанные скобки остаются', t8.title === 'Track (Part II)', `«${t8.title}»`);
+
+const t9 = displayTitle('(Official Video)');
+check('из одних скобок не делаем пустую строку', t9.title.length > 0, `«${t9.title}»`);
+
+const tDur = displayTitle('Queen - Greatest Hits (2) [1 hour 20 minutes long]');
+check('описание длительности в скобках уходит',
+  !tDur.title.includes('hour'), `«${tDur.title}»`);
+check('номер тома при этом сохраняется',
+  tDur.title === 'Greatest Hits (2)', `«${tDur.title}»`);
+
+const tDurRu = displayTitle('Сборник [45 минут]');
+check('то же по-русски', tDurRu.title === 'Сборник', `«${tDurRu.title}»`);
+
+const t10 = displayTitle('Песня (2020)');
+check('голый год выбрасывается', t10.title === 'Песня', `«${t10.title}»`);
 
 console.log(failures === 0 ? '\nВСЁ ПРОШЛО' : `\nПРОВАЛОВ: ${failures}`);
 process.exit(failures === 0 ? 0 : 1);

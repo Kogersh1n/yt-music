@@ -7,6 +7,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Chip } from '../src/ui/components/Chip';
 import { EmptyState } from '../src/ui/components/states';
 import { MiniPlayer } from '../src/ui/components/MiniPlayer';
+import { TrackTitle } from '../src/ui/components/TrackTitle';
 import { useTheme, useThemedStyles, type Theme } from '../src/ui/theme';
 import { usePlayEvents, type PlayEvent } from '../src/local/plays';
 import { useTaste } from '../src/features/recommend';
@@ -249,9 +250,7 @@ function HistoryRow({
       <Text style={styles.time}>{clockTime(event.startedAt)}</Text>
 
       <View style={styles.rowText}>
-        <Text numberOfLines={1} style={styles.rowTitle}>
-          {event.title}
-        </Text>
+        <TrackTitle title={event.title} style={styles.rowTitle} />
         <Text numberOfLines={1} style={styles.rowAuthor}>
           {event.author}
         </Text>

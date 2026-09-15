@@ -5,6 +5,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Gradient } from '../src/ui/components/Gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Thumb } from '../src/ui/components/Thumb';
+import { TrackTitle } from '../src/ui/components/TrackTitle';
 import { Glow } from '../src/ui/components/Glow';
 import { FormatBadge } from '../src/ui/components/FormatBadge';
 import { Scrubber } from '../src/ui/components/Scrubber';
@@ -152,9 +153,7 @@ export default function PlayerScreen() {
           <View style={styles.titleText}>
             {/* Две строки, а не одна: названия с ютуба длинные, и обрезание
                 посреди слова у главного элемента экрана выглядит скупо. */}
-            <Text numberOfLines={2} style={styles.title}>
-              {track.title}
-            </Text>
+            <TrackTitle title={track.title} style={styles.title} numberOfLines={2} />
             <View style={styles.authorRow}>
               <Text numberOfLines={1} style={styles.author}>
                 {track.author}

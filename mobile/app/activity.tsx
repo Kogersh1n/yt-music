@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { MiniPlayer } from '../src/ui/components/MiniPlayer';
+import { TrackTitle } from '../src/ui/components/TrackTitle';
 import { EmptyState } from '../src/ui/components/states';
 import { plural, useTheme, useThemedStyles, type Theme } from '../src/ui/theme';
 import { formatListening } from '../src/local/stats';
@@ -94,9 +95,7 @@ export default function ActivityScreen() {
                   <View key={track.trackId} style={styles.rank}>
                     <Text style={styles.rankNumber}>{index + 1}</Text>
                     <View style={styles.rankText}>
-                      <Text numberOfLines={1} style={styles.rankName}>
-                        {track.title}
-                      </Text>
+                      <TrackTitle title={track.title} style={styles.rankName} />
                       <Text numberOfLines={1} style={styles.rankSub}>
                         {displayArtist(track.author)}
                       </Text>

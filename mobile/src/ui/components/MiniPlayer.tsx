@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useProgress } from 'react-native-track-player';
 import { Thumb } from './Thumb';
+import { TrackTitle } from './TrackTitle';
 import { useTheme, useThemedStyles, type Theme } from '../theme';
 import { useCurrentTrack, useQueue } from '../../player/queueStore';
 import { usePlayback } from '../../player/usePlayback';
@@ -53,9 +54,7 @@ export const MiniPlayer = memo(function MiniPlayer({ standalone = false }: MiniP
         <Thumb track={track} size={40} />
 
         <View style={styles.text}>
-          <Text numberOfLines={1} style={styles.title}>
-            {track.title}
-          </Text>
+          <TrackTitle title={track.title} style={styles.title} />
           {/*
             Вторая строка — это и есть ответ на вопрос «почему не играет».
             Раньше причина записывалась в очередь и нигде не показывалась:

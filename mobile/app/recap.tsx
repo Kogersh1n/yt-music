@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -6,8 +6,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '../src/ui/components/states';
 import { useTheme, useThemedStyles, type Theme } from '../src/ui/theme';
 import { useMonthlyRecap, type Recap } from '../src/features/recap';
+import type { ArtistSummary } from '../src/features/recap';
 import { formatListening } from '../src/local/stats';
 import { displayArtist } from '../src/api/songText';
+import { hexToHsl, hslToHex, withAlpha } from '../src/ui/theme/color';
+import { TrackTitle } from '../src/ui/components/TrackTitle';
 import { tapLight } from '../src/ui/haptics';
 
 /**
@@ -146,9 +149,21 @@ function RecapBody({ recap }: { recap: Recap }) {
       {recap.topArtists.length > 0 ? (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Чаще всего слушали</Text>
-          {recap.topArtists.map((artist, index) => (
+
+          {/* Тройка лидеров — пьедесталом, остальные списком.
+              Раньше все десять шли одинаковыми строками: список честно
+              показывал порядок, но не показывал, что первое место есть.
+              Кольцо градуировано, а не одинаковое у троих: пьедестал
+              должен ранжировать, иначе он просто подсветка. */}
+          <View style={styles.podium}>
+            {recap.topArtists.slice(0, 3).map((artist, index) => (
+              <PodiumPlace key={artist.author} artist={artist} place={index + 1} />
+            ))}
+          </View>
+
+          {recap.topArtists.slice(3).map((artist, index) => (
             <View key={artist.author} style={styles.artist}>
-              <Text style={styles.rank}>{index + 1}</Text>
+              <Text style={styles.rank}>{index + 4}</Text>
               <View style={styles.artistBody}>
                 <Text style={styles.artistName} numberOfLines={1}>
                   {displayArtist(artist.author)}
@@ -175,9 +190,7 @@ function RecapBody({ recap }: { recap: Recap }) {
             <View key={track.trackId} style={styles.track}>
               <Text style={styles.rank}>{index + 1}</Text>
               <View style={styles.trackBody}>
-                <Text style={styles.trackTitle} numberOfLines={1}>
-                  {track.title}
-                </Text>
+                <TrackTitle title={track.title} style={styles.trackTitle} />
                 <Text style={styles.trackAuthor} numberOfLines={1}>
                   {displayArtist(track.author)}
                 </Text>
@@ -228,6 +241,74 @@ function RecapBody({ recap }: { recap: Recap }) {
         не отправляются ради этого экрана.
       </Text>
     </>
+  );
+}
+
+/**
+ * Место на пьедестале.
+ *
+ * Аватарок у исполнителей нет и взять их неоткуда, поэтому кружок
+ * собираем из имени: оттенок выводим из самого имени, а насыщенность
+ * и светлоту берём у фирменного цвета темы. Так кружки различимы между
+ * собой и при этом не спорят с темой, которую пользователь настроил сам.
+ */
+function PodiumPlace({ artist, place }: { artist: ArtistSummary; place: number }) {
+  const theme = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
+  const name = displayArtist(artist.author);
+
+  const tint = useMemo(() => {
+    const base = hexToHsl(theme.colors.brand);
+    if (!base) return theme.colors.surfaceHigh;
+
+    // Сумма кодов букв — не криптография, а всего лишь способ получить
+    // из имени одно и то же число при каждом запуске.
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) % 360;
+
+    // Насыщенность и светлоту берём НЕ у бренда как есть: у фирменного
+    // красного они предельные, и производные цвета выходили неоновыми —
+    // три кислотных кружка спорили со всем остальным экраном. Приглушаем
+    // и затемняем: различить исполнителей это не мешает, а светлая буква
+    // поверх читается уверенно.
+    return hslToHex({ h: hash, s: Math.min(base.s, 48), l: 32 });
+  }, [name, theme.colors.brand, theme.colors.surfaceHigh]);
+
+  // Первое место получает сплошное кольцо, третье — едва заметное.
+  const ringAlpha = [100, 50, 28][place - 1] ?? 28;
+  const ringWidth = place === 1 ? 2 : 1;
+
+  return (
+    <View
+      style={[
+        styles.place,
+        { backgroundColor: withAlpha(theme.colors.brand, place === 1 ? 10 : 4) ?? 'transparent' },
+      ]}
+    >
+      <View style={styles.avatarWrap}>
+        <View
+          style={[
+            styles.avatar,
+            {
+              backgroundColor: tint,
+              borderWidth: ringWidth,
+              borderColor: withAlpha(theme.colors.brand, ringAlpha) ?? theme.colors.brand,
+            },
+          ]}
+        >
+          <Text style={styles.avatarLetter}>{name.slice(0, 1).toUpperCase()}</Text>
+        </View>
+        <Text style={styles.placeNumber}>{place}</Text>
+      </View>
+
+      <Text numberOfLines={1} style={styles.placeName}>
+        {name}
+      </Text>
+      <Text numberOfLines={1} style={styles.placeTime}>
+        {formatListening(artist.seconds)}
+      </Text>
+    </View>
   );
 }
 
@@ -305,6 +386,48 @@ const makeStyles = (t: Theme) =>
     section: { gap: t.spacing.sm },
     sectionTitle: { ...t.type.section, color: t.colors.text },
     sectionHint: { ...t.type.meta, color: t.colors.textFaint, marginTop: -4 },
+
+    podium: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: t.spacing.sm,
+      marginBottom: t.spacing.sm,
+    },
+    place: {
+      flex: 1,
+      alignItems: 'center',
+      gap: 2,
+      paddingTop: t.spacing.sm,
+      paddingBottom: t.spacing.sm,
+      paddingHorizontal: 4,
+      borderRadius: t.radius.card,
+    },
+    avatarWrap: { alignItems: 'center', marginBottom: 8 },
+    avatar: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarLetter: { ...t.type.section, color: t.colors.onAccent },
+    placeNumber: {
+      ...t.type.meta,
+      fontWeight: '700',
+      color: t.colors.brand,
+      backgroundColor: t.colors.bg,
+      paddingHorizontal: 5,
+      borderRadius: 4,
+      marginTop: -9,
+      fontVariant: ['tabular-nums'],
+    },
+    placeName: { ...t.type.meta, color: t.colors.text, textAlign: 'center' },
+    placeTime: {
+      ...t.type.meta,
+      color: t.colors.textDim,
+      textAlign: 'center',
+      fontVariant: ['tabular-nums'],
+    },
 
     artist: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm },
     artistBody: { flex: 1, gap: 6 },
