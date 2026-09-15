@@ -7,6 +7,7 @@ import { EmptyState } from '../src/ui/components/states';
 import { useTheme, useThemedStyles, type Theme } from '../src/ui/theme';
 import { useMonthlyRecap, type Recap } from '../src/features/recap';
 import { formatListening } from '../src/local/stats';
+import { displayArtist } from '../src/api/songText';
 import { tapLight } from '../src/ui/haptics';
 
 /**
@@ -150,7 +151,7 @@ function RecapBody({ recap }: { recap: Recap }) {
               <Text style={styles.rank}>{index + 1}</Text>
               <View style={styles.artistBody}>
                 <Text style={styles.artistName} numberOfLines={1}>
-                  {artist.author}
+                  {displayArtist(artist.author)}
                 </Text>
                 <View style={styles.barTrack}>
                   <View
@@ -178,7 +179,7 @@ function RecapBody({ recap }: { recap: Recap }) {
                   {track.title}
                 </Text>
                 <Text style={styles.trackAuthor} numberOfLines={1}>
-                  {track.author}
+                  {displayArtist(track.author)}
                 </Text>
               </View>
               <Text style={styles.trackPlays}>{track.plays}×</Text>
@@ -197,7 +198,7 @@ function RecapBody({ recap }: { recap: Recap }) {
             {recap.newArtists.map((name) => (
               <View key={name} style={styles.chip}>
                 <Text style={styles.chipText} numberOfLines={1}>
-                  {name}
+                  {displayArtist(name)}
                 </Text>
               </View>
             ))}
