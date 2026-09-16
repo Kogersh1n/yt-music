@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -79,6 +80,22 @@ export default function ActivityScreen() {
                 {allTime.topArtists.map((artist, index) => (
                   <View key={artist.author} style={styles.rank}>
                     <Text style={styles.rankNumber}>{index + 1}</Text>
+                    {/* Буква в подложке, обложка поверх: у части роликов
+                        hq720 отсутствует, и без этого оставался чёрный круг. */}
+                    <View style={[styles.avatar, styles.avatarEmpty]}>
+                      <Text style={styles.avatarLetter}>
+                        {displayArtist(artist.author).slice(0, 1).toUpperCase()}
+                      </Text>
+                      {artist.youtubeId ? (
+                        <Image
+                          source={{ uri: `https://i.ytimg.com/vi/${artist.youtubeId}/hq720.jpg` }}
+                          style={[StyleSheet.absoluteFill, styles.avatar]}
+                          cachePolicy="memory-disk"
+                          contentFit="cover"
+                          transition={theme.motion.scale === 0 ? 0 : 150}
+                        />
+                      ) : null}
+                    </View>
                     <Text numberOfLines={1} style={styles.rankName}>
                       {displayArtist(artist.author)}
                     </Text>
@@ -200,6 +217,14 @@ const makeStyles = (t: Theme) =>
       width: 16,
       fontVariant: ['tabular-nums'],
     },
+    avatar: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden' },
+    avatarEmpty: {
+      backgroundColor: t.colors.surfaceHigh,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarLetter: { ...t.type.meta, color: t.colors.textDim, fontWeight: '600' },
+
     rankText: { flex: 1, gap: 1 },
     rankName: { ...t.type.body, color: t.colors.text, flex: 1 },
     rankSub: { ...t.type.meta, color: t.colors.textDim },

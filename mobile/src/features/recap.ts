@@ -16,6 +16,15 @@ export interface ArtistSummary {
   author: string;
   seconds: number;
   plays: number;
+  /**
+   * Ролик самого слушаемого трека этого исполнителя.
+   *
+   * Нужен как аватарка: своих портретов у исполнителей взять неоткуда,
+   * а обложка того, что у них слушают больше всего, — ближайшее честное
+   * приближение и не стоит ни одного лишнего запроса, потому что
+   * youtubeId и так лежит в каждом событии журнала.
+   */
+  youtubeId: string | null;
 }
 
 export interface TrackSummary {
@@ -94,6 +103,8 @@ export function computeRecap(
   if (events.length === 0) return empty;
 
   const artists = new Map<string, ArtistSummary>();
+  /** Лучший по времени ролик каждого исполнителя — из него берётся аватарка. */
+  const bestOf = new Map<string, number>();
   const tracks = new Map<string, TrackSummary>();
   const byDay = new Map<number, number>();
   const byHour = new Array<number>(24).fill(0);
@@ -109,9 +120,18 @@ export function computeRecap(
       author: event.author,
       seconds: 0,
       plays: 0,
+      youtubeId: null,
     };
     artist.seconds += event.seconds;
     artist.plays += 1;
+
+    // Аватаркой берём не первый попавшийся ролик, а тот, который слушали
+    // дольше всех: у случайного пропущенного трека обложка чаще мимо.
+    if (event.youtubeId && event.seconds > (bestOf.get(event.author) ?? 0)) {
+      bestOf.set(event.author, event.seconds);
+      artist.youtubeId = event.youtubeId;
+    }
+
     artists.set(event.author, artist);
 
     const track = tracks.get(event.trackId) ?? {

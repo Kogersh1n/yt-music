@@ -96,11 +96,15 @@ export function useRecommendations() {
   const taste = useTaste(SEED_COUNT);
   const signature = signatureOf(taste.seeds);
 
-  const cached = readJSON<CachedFeed | null>(CACHE_KEY, null);
-  const usable =
-    cached && cached.signature === signature && Date.now() - cached.at < TTL_MS
-      ? cached.tracks
-      : undefined;
+  // Чтение с диска и разбор JSON — в useMemo, а не на каждый рендер.
+  // Главная перерисовывается на каждой смене трека (журнал меняется),
+  // и без этого кэш подсказок перечитывался с диска столько же раз.
+  const { usable, cachedAt } = useMemo(() => {
+    const cached = readJSON<CachedFeed | null>(CACHE_KEY, null);
+    const fresh =
+      cached && cached.signature === signature && Date.now() - cached.at < TTL_MS;
+    return { usable: fresh ? cached.tracks : undefined, cachedAt: cached?.at };
+  }, [signature]);
 
   const query = useQuery({
     queryKey: ['recommendations', signature],
@@ -108,7 +112,7 @@ export function useRecommendations() {
     // Кэш с диска — чтобы главная после запуска рисовалась сразу,
     // а не через секунду ожидания сети.
     initialData: usable,
-    initialDataUpdatedAt: usable ? cached?.at : undefined,
+    initialDataUpdatedAt: usable ? cachedAt : undefined,
     staleTime: TTL_MS,
     gcTime: TTL_MS,
     retry: 1,

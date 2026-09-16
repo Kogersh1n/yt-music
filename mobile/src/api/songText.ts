@@ -90,9 +90,35 @@ export function songTitleKey(title: string, author: string): string {
   return (core.length > 0 ? core : [...inTitle]).sort().join(' ');
 }
 
+/**
+ * Запоминание отпечатков.
+ *
+ * Отпечаток считается по журналу прослушиваний, а там одни и те же треки
+ * встречаются десятками раз: у двадцати тысяч событий уникальных пар
+ * «название + исполнитель» несколько сотен. Без кэша разбор строки шёл
+ * на каждое событие заново, и пересчёт профиля вкуса упирался именно
+ * в него — а профиль пересчитывается на каждой смене трека, в потоке
+ * интерфейса.
+ *
+ * Потолок нужен, чтобы карта не росла бесконечно за долгую сессию.
+ * При переполнении чистим целиком: выбирать, что выбросить, тут дороже,
+ * чем посчитать заново.
+ */
+const SIGNATURE_LIMIT = 4000;
+const signatureCache = new Map<string, string>();
+
 export function songSignature(title: string, author: string): string {
+  const key = `${title}\u0000${author}`;
+  const cached = signatureCache.get(key);
+  if (cached !== undefined) return cached;
+
   const who = [...tokens(author)].sort()[0] ?? '';
-  return `${songTitleKey(title, author)}|${who}`;
+  const value = `${songTitleKey(title, author)}|${who}`;
+
+  if (signatureCache.size >= SIGNATURE_LIMIT) signatureCache.clear();
+  signatureCache.set(key, value);
+
+  return value;
 }
 
 /**

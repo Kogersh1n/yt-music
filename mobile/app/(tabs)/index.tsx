@@ -87,7 +87,7 @@ export default function HomeScreen() {
     >
       <View style={styles.header}>
         <Text style={styles.brand}>
-          <Text style={styles.brandMark}>▶</Text> Qaimaq
+          <Text style={styles.brandMark}>▶</Text> dybus
         </Text>
         <Pressable
           onPress={() => router.push('/settings')}

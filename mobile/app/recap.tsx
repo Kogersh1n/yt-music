@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -164,6 +165,7 @@ function RecapBody({ recap }: { recap: Recap }) {
           {recap.topArtists.slice(3).map((artist, index) => (
             <View key={artist.author} style={styles.artist}>
               <Text style={styles.rank}>{index + 4}</Text>
+              <ArtistAvatar artist={artist} size={28} />
               <View style={styles.artistBody}>
                 <Text style={styles.artistName} numberOfLines={1}>
                   {displayArtist(artist.author)}
@@ -245,6 +247,38 @@ function RecapBody({ recap }: { recap: Recap }) {
 }
 
 /**
+ * Кружок исполнителя. Обложка самого слушаемого его трека, иначе буква.
+ *
+ * Вынесен отдельно, потому что нужен в двух видах — крупный на
+ * пьедестале и мелкий в списке, — а правило «что показать» одно.
+ */
+function ArtistAvatar({ artist, size }: { artist: ArtistSummary; size: number }) {
+  const theme = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const box = { width: size, height: size, borderRadius: size / 2 };
+
+  // Буква лежит в подложке, картинка кладётся поверх. Так не нужно ловить
+  // ошибку загрузки: у части роликов hq720 просто нет (у концертных записей
+  // особенно), и там оставался чёрный кружок вместо исполнителя.
+  return (
+    <View style={[styles.miniAvatar, box]}>
+      <Text style={[styles.miniLetter, { fontSize: size * 0.42 }]}>
+        {displayArtist(artist.author).slice(0, 1).toUpperCase()}
+      </Text>
+      {artist.youtubeId ? (
+        <Image
+          source={{ uri: `https://i.ytimg.com/vi/${artist.youtubeId}/hq720.jpg` }}
+          style={[StyleSheet.absoluteFill, box]}
+          cachePolicy="memory-disk"
+          contentFit="cover"
+          transition={theme.motion.scale === 0 ? 0 : Math.round(150 * theme.motion.scale)}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+/**
  * Место на пьедестале.
  *
  * Аватарок у исполнителей нет и взять их неоткуда, поэтому кружок
@@ -297,7 +331,18 @@ function PodiumPlace({ artist, place }: { artist: ArtistSummary; place: number }
             },
           ]}
         >
+          {/* Буква под картинкой: если обложки у ролика нет, кружок
+              не станет чёрным пятном. */}
           <Text style={styles.avatarLetter}>{name.slice(0, 1).toUpperCase()}</Text>
+          {artist.youtubeId ? (
+            <Image
+              source={{ uri: `https://i.ytimg.com/vi/${artist.youtubeId}/hq720.jpg` }}
+              style={[StyleSheet.absoluteFill, styles.avatarImage]}
+              cachePolicy="memory-disk"
+              contentFit="cover"
+              transition={theme.motion.scale === 0 ? 0 : Math.round(150 * theme.motion.scale)}
+            />
+          ) : null}
         </View>
         <Text style={styles.placeNumber}>{place}</Text>
       </View>
@@ -409,7 +454,18 @@ const makeStyles = (t: Theme) =>
       borderRadius: 26,
       alignItems: 'center',
       justifyContent: 'center',
+      // Кадр 16:9 в круге обрежется по центру — там почти всегда лицо
+      // или обложка, а не край. overflow нужен явно: на Android
+      // borderRadius сам по себе картинку внутри не обрезает.
+      overflow: 'hidden',
     },
+    avatarImage: { width: '100%', height: '100%' },
+    miniAvatar: {
+      backgroundColor: t.colors.surfaceHigh,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    miniLetter: { color: t.colors.textDim, fontWeight: '600' },
     avatarLetter: { ...t.type.section, color: t.colors.onAccent },
     placeNumber: {
       ...t.type.meta,
