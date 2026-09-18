@@ -18,7 +18,11 @@ import { useCurrentTrack, useQueue } from '../src/player/queueStore';
 import { usePlayback } from '../src/player/usePlayback';
 import { useIsLiked, toggleLike } from '../src/local/likes';
 import { useMusicCover } from '../src/features/useMusicMeta';
+import TrackPlayer from 'react-native-track-player';
 import { relatedTracks } from '../src/api/radio';
+import { displayArtist } from '../src/api/songText';
+import { ActionSheet, type SheetAction } from '../src/ui/components/ActionSheet';
+import { useSettings, updateSettings } from '../src/local/settings';
 import { trackKey } from '../src/api/types';
 
 /**
@@ -50,6 +54,29 @@ export default function PlayerScreen() {
    * playNow с той же позицией сбросил бы воспроизведение, а человек просил
    * не «начать заново», а «дальше пусть будет похожее».
    */
+  /**
+   * Скорость воспроизведения — как в YT Music.
+   *
+   * Значения не произвольные, а набор ступеней: ползунок на телефоне
+   * выставляет скорость неточно, а разница между 1.15 и 1.2 на слух
+   * неразличима. Ступенями попадаешь пальцем с первого раза.
+   */
+  const settings = useSettings();
+  const [rateOpen, setRateOpen] = useState(false);
+
+  const rateActions = useMemo<SheetAction[]>(
+    () =>
+      [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((rate) => ({
+        label: rate === 1 ? 'Обычная (1×)' : `${String(rate).replace('.', ',')}×`,
+        icon: (settings.playbackRate === rate ? 'check' : 'speed') as SheetAction['icon'],
+        onPress: () => {
+          updateSettings({ playbackRate: rate });
+          void TrackPlayer.setRate(rate).catch(() => undefined);
+        },
+      })),
+    [settings.playbackRate],
+  );
+
   const [radioBusy, setRadioBusy] = useState(false);
   const startRadio = useCallback(async () => {
     const videoId = track?.youtubeId;
@@ -155,9 +182,14 @@ export default function PlayerScreen() {
                 посреди слова у главного элемента экрана выглядит скупо. */}
             <TrackTitle title={track.title} style={styles.title} numberOfLines={2} />
             <View style={styles.authorRow}>
-              <Text numberOfLines={1} style={styles.author}>
-                {track.author}
-              </Text>
+              <Pressable
+                onPress={() => router.push(`/artist?name=${encodeURIComponent(track.author)}`)}
+                hitSlop={8}
+              >
+                <Text numberOfLines={1} style={[styles.author, styles.authorLink]}>
+                  {displayArtist(track.author)}
+                </Text>
+              </Pressable>
               <FormatBadge format={format} />
             </View>
           </View>
@@ -169,6 +201,22 @@ export default function PlayerScreen() {
             accessibilityLabel="Текст песни"
           >
             <MaterialIcons name="lyrics" size={22} color={theme.colors.text} />
+          </Pressable>
+
+          <Pressable
+            onPress={() => setRateOpen(true)}
+            hitSlop={12}
+            style={styles.action}
+            accessibilityLabel="Скорость воспроизведения"
+          >
+            <Text
+              style={[
+                styles.rate,
+                settings.playbackRate !== 1 && { color: theme.colors.brand },
+              ]}
+            >
+              {String(settings.playbackRate).replace('.', ',')}×
+            </Text>
           </Pressable>
 
           {track.youtubeId ? (
@@ -203,6 +251,14 @@ export default function PlayerScreen() {
         <Scrubber />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        <ActionSheet
+          visible={rateOpen}
+          title="Скорость"
+          subtitle="Применяется ко всем трекам"
+          actions={rateActions}
+          onClose={() => setRateOpen(false)}
+        />
 
         <View style={styles.controls}>
           <Pressable onPress={() => void toggleShuffle()} hitSlop={12}>
@@ -267,6 +323,8 @@ const makeStyles = (t: Theme) =>
     author: { ...t.type.body, color: t.colors.textDim, flexShrink: 1 },
     action: { width: 36, alignItems: 'center' },
     error: { ...t.type.meta, color: t.colors.danger, textAlign: 'center' },
+    authorLink: { textDecorationLine: 'underline', textDecorationColor: t.colors.textFaint },
+    rate: { ...t.type.label, color: t.colors.text, fontVariant: ['tabular-nums'] },
     controls: {
       flexDirection: 'row',
       alignItems: 'center',

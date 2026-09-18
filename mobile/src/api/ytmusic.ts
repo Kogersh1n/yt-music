@@ -1,4 +1,5 @@
-import { looksLikeSame } from './songText';
+import { looksLikeSame, tokens } from './songText';
+import type { Track } from './types';
 import {
   collect,
   findFirst,
@@ -178,4 +179,68 @@ export async function getLyrics(songVideoId: string): Promise<Lyrics | null> {
   const source = footer ? columnText(footer) || null : null;
 
   return { text: longest, source };
+}
+
+/**
+ * Песни исполнителя.
+ *
+ * Берём поиском по имени с фильтром «Песни», а не страницей артиста.
+ * Причина простая: страница артиста адресуется browseId, а у нас на руках
+ * почти всегда только имя — оно приходит из журнала прослушиваний, где
+ * идентификаторов каналов нет. Искать по имени работает всегда.
+ *
+ * Отсев по исполнителю обязателен: поиск по имени охотно подмешивает
+ * каверы, ремиксы чужих исполнителей и просто похожие названия. Сверяем
+ * значимые слова имени — той же функцией, что и везде.
+ */
+export async function artistTracks(artist: string, limit = 30): Promise<Track[]> {
+  const visitor = await getVisitorData();
+  const data = await innertube<unknown>(MUSIC, 'search', {
+    query: artist,
+    params: SONGS_FILTER,
+  }, visitor);
+
+  const items = collect(data, 'musicResponsiveListItemRenderer');
+  const wanted = tokens(artist);
+
+  const out: Track[] = [];
+  const seen = new Set<string>();
+
+  for (const item of items) {
+    const videoId = findFirst(item, 'videoId', isString);
+    if (!videoId || seen.has(videoId)) continue;
+
+    const columns = (item as { flexColumns?: unknown[] })?.flexColumns ?? [];
+    const title = columnText(columns[0]);
+    const found = columnText(columns[1]).split('•')[0].trim();
+    if (!title) continue;
+
+    // Имя исполнителя должно совпасть хотя бы наполовину значимых слов,
+    // иначе в список артиста попадают чужие каверы.
+    const got = tokens(found);
+    if (wanted.size > 0 && got.size > 0) {
+      let hits = 0;
+      for (const word of wanted) if (got.has(word)) hits += 1;
+      if (hits / wanted.size < 0.5) continue;
+    }
+
+    const thumbs = findFirst(item, 'thumbnails', isThumbList);
+    const square = thumbs?.filter((t) => t.width === t.height) ?? [];
+    const best = square.length > 0 ? square[square.length - 1] : null;
+
+    seen.add(videoId);
+    out.push({
+      id: `yt:${videoId}`,
+      title,
+      author: found || artist,
+      duration: 0,
+      artwork: best ? sized(best.url, 256) : `https://i.ytimg.com/vi/${videoId}/hq720.jpg`,
+      source: 'youtube',
+      youtubeId: videoId,
+    });
+
+    if (out.length >= limit) break;
+  }
+
+  return out;
 }

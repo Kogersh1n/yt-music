@@ -39,6 +39,14 @@ export interface AppSettings {
    * как поломку, а не как задумку.
    */
   autoRadio: boolean;
+  /**
+   * Скорость воспроизведения. 1 — обычная.
+   *
+   * Хранится в настройках, а не в сторе очереди, потому что это свойство
+   * слушателя, а не трека: выставил полтора — хочешь полтора и на
+   * следующем, и после перезапуска.
+   */
+  playbackRate: number;
 }
 
 const DEFAULTS: AppSettings = {
@@ -47,6 +55,7 @@ const DEFAULTS: AppSettings = {
   skipSilence: false,
   audioOffload: false,
   autoRadio: true,
+  playbackRate: 1,
 };
 
 let settings: AppSettings = { ...DEFAULTS, ...readJSON<Partial<AppSettings>>(KEY, {}) };

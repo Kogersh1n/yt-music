@@ -36,15 +36,33 @@ const KEY = 'likes.v1';
  */
 const UNLIKED_KEY = 'likes.unliked.v1';
 
+/**
+ * Сами лайкнутые треки, а не только их ключи.
+ *
+ * Ключей было достаточно, пока лайкали медиатеку: название и обложку
+ * брали из неё же. Но приложение стало ютуб-плеером — в медиатеке три
+ * трека, а слушают радио и подсказки. У лайкнутого ютуб-трека записи
+ * в медиатеке нет, и по одному ключу его не показать и не включить:
+ * экран «Понравившиеся» фильтровал медиатеку и находил пустоту.
+ *
+ * Теперь рядом с ключами лежат сами треки. Место копеечное — сотня
+ * лайков это десятки килобайт.
+ */
+const TRACKS_KEY = 'likes.tracks.v1';
+
 let liked: Set<string> = new Set(readJSON<string[]>(KEY, []));
+let likedTracks: Track[] = readJSON<Track[]>(TRACKS_KEY, []);
 let unliked: Set<string> = new Set(readJSON<string[]>(UNLIKED_KEY, []));
 const listeners = new Set<() => void>();
 /** Снимок для useSyncExternalStore должен быть стабильным по ссылке. */
 let snapshot: readonly string[] = Object.freeze([...liked]);
+let tracksSnapshot: readonly Track[] = Object.freeze([...likedTracks]);
 
 function commit(): void {
   snapshot = Object.freeze([...liked]);
+  tracksSnapshot = Object.freeze([...likedTracks]);
   writeJSON(KEY, [...liked]);
+  writeJSON(TRACKS_KEY, likedTracks);
   listeners.forEach((listener) => listener());
 }
 
@@ -72,8 +90,11 @@ export function toggleLike(track: Track): void {
   if (nowLiked) {
     liked.add(key);
     unliked.delete(key);
+    // Новые сверху: список читают как «что понравилось недавно».
+    likedTracks = [track, ...likedTracks.filter((item) => trackKey(item) !== key)];
   } else {
     liked.delete(key);
+    likedTracks = likedTracks.filter((item) => trackKey(item) !== key);
     // Помним о снятии, пока сервер его не подтвердит.
     if (track.source === 'library') unliked.add(key);
   }
@@ -91,6 +112,16 @@ export function toggleLike(track: Track): void {
 /** Все лайки. Порядок — как добавляли. */
 export function useLikedIds(): readonly string[] {
   return useSyncExternalStore(subscribe, () => snapshot);
+}
+
+/**
+ * Лайкнутые треки целиком — для экрана «Понравившиеся».
+ *
+ * Сюда попадают и треки с ютуба, у которых нет записи в медиатеке:
+ * именно их раньше и не было видно.
+ */
+export function useLikedTracks(): readonly Track[] {
+  return useSyncExternalStore(subscribe, () => tracksSnapshot);
 }
 
 /** Подписка на один трек: перерисовывается только эта строка, а не весь список. */

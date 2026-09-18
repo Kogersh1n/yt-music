@@ -37,6 +37,31 @@ export type RepeatMode = 'off' | 'all' | 'one';
 const LOOKAHEAD = 4;
 
 /**
+ * Сколько отыгранных треков держим позади текущего.
+ *
+ * Потолок был у всего, кроме очереди: статистика, недавнее, журнал,
+ * кэш ссылок — везде стоит предел, а `queue` рос бесконечно. С включённым
+ * автопродолжением он растёт сам: каждые несколько треков радио
+ * дописывает ещё двадцать пять. За вечер это сотни позиций, и каждая
+ * смена трека сериализует их целиком на диск, ищет по ним findIndex
+ * и строит из них Set. Отсюда и «чем дольше слушаю, тем медленнее».
+ *
+ * Тридцать назад — это «вернуться к тому, что играло полчаса назад».
+ * Дальше никто не отматывает, а история прослушивания всё равно ведётся
+ * отдельно и полностью (local/plays.ts).
+ */
+const HISTORY_KEEP = 30;
+
+/**
+ * Сколько отыгранных треков держим заряженными в самом движке.
+ *
+ * ExoPlayer хранит подготовленные источники в нативной памяти, и
+ * skipWithinPlayer только перематывал вперёд, ничего не выбрасывая.
+ * Двух хватает, чтобы «предыдущий» срабатывал мгновенно.
+ */
+const ENGINE_BEHIND = 2;
+
+/**
  * Номер поколения загрузки.
  *
  * Заряжание трека — это несколько запросов подряд: ссылка (полторы секунды
@@ -139,6 +164,8 @@ export const useQueue = create<QueueState & QueueActions>((set, get) => ({
       // уже неактуальна и не должна довести свой reset() до конца.
       const generation = ++loadGeneration;
       set({ index: nextIndex });
+      applyTrim(get, set);
+      void pruneEngine();
       persist();
       await refillLookahead(get(), generation);
       return;
@@ -233,7 +260,9 @@ export const useQueue = create<QueueState & QueueActions>((set, get) => ({
     // лежать вся выдача поиска, и «дальше похожее» означает «дальше»,
     // а не «когда-нибудь через тридцать треков».
     const next = [...queue.slice(0, index + 1), ...fresh, ...queue.slice(index + 1)];
-    set({ queue: next });
+    // Радио дописывает по двадцать пять за раз — обрезаем здесь же,
+    // иначе очередь растёт ровно на столько же каждые несколько треков.
+    set(trimHistory(next, index) ?? { queue: next });
     persist();
     void refillLookahead(get(), loadGeneration);
   },
@@ -281,6 +310,8 @@ export const useQueue = create<QueueState & QueueActions>((set, get) => ({
         // именно здесь становится известно, сколько тот проиграл.
         beginPlay(track);
       }
+      applyTrim(get, set);
+      void pruneEngine();
       persist();
       void refillLookahead(get(), loadGeneration);
     }
@@ -350,6 +381,47 @@ export const useQueue = create<QueueState & QueueActions>((set, get) => ({
 }));
 
 /**
+ * Отрезать хвост отыгранного.
+ *
+ * Возвращает новый индекс: обрезаем с начала, значит текущий трек
+ * сдвигается влево ровно на столько, сколько выкинули.
+ */
+function trimHistory(queue: Track[], index: number): { queue: Track[]; index: number } | null {
+  const extra = index - HISTORY_KEEP;
+  if (extra <= 0) return null;
+
+  return { queue: queue.slice(extra), index: index - extra };
+}
+
+/** Обрезать историю в сторе, если накопилась. */
+function applyTrim(
+  get: () => QueueState & QueueActions,
+  set: (partial: Partial<QueueState>) => void,
+): void {
+  const { queue, index } = get();
+  const trimmed = trimHistory(queue, index);
+  if (trimmed) set(trimmed);
+}
+
+/**
+ * Выбросить из движка то, что уже отыграли.
+ *
+ * Без этого очередь ExoPlayer растёт вместе с логической, только
+ * в нативной памяти и с подготовленными источниками внутри.
+ */
+async function pruneEngine(): Promise<void> {
+  try {
+    const current = await TrackPlayer.getActiveTrackIndex();
+    if (current === undefined || current <= ENGINE_BEHIND) return;
+
+    const drop = Array.from({ length: current - ENGINE_BEHIND }, (_, i) => i);
+    await TrackPlayer.remove(drop);
+  } catch {
+    // Движок не в том состоянии — не повод ломать воспроизведение.
+  }
+}
+
+/**
  * Заряжает текущий трек в движок и подтягивает ближайшие следующие.
  * `startPosition` нужен при восстановлении сессии.
  */
@@ -376,6 +448,11 @@ async function loadCurrent(
     if (generation !== loadGeneration) return;
     if (startPosition > 0) await TrackPlayer.seekTo(startPosition);
     if (autoplay) await TrackPlayer.play();
+
+    // Скорость сбрасывается движком при перезарядке трека, поэтому
+    // возвращаем её после каждого play, а не один раз при запуске.
+    const rate = getSettings().playbackRate;
+    if (rate !== 1) await TrackPlayer.setRate(rate).catch(() => undefined);
 
     // В «недавнее» и в статистику трек попадает, только когда его
     // действительно включили, а не при восстановлении очереди на старте.

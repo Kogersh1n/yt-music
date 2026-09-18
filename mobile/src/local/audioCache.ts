@@ -39,6 +39,22 @@ interface CacheEntry {
   /** Имя файла внутри каталога кэша, а не полный путь: путь между запусками меняется. */
   name: string;
   at: number;
+  /**
+   * Сам трек. Раньше хранился только ключ, и список «Скачанное»
+   * фильтровал по нему медиатеку — а у трека с ютуба записи в медиатеке
+   * нет, поэтому скачанное с ютуба нигде не показывалось.
+   *
+   * Необязательное: у записей, сделанных до этого изменения, его нет.
+   * Они остаются играбельными, просто не попадают в список.
+   */
+  track?: Track;
+  /**
+   * Скачан вручную, а не попал в кэш попутно.
+   *
+   * Вытеснение такие не трогает: человек нажал «скачать» осознанно,
+   * и молча удалить это через пять треков — обмануть его.
+   */
+  pinned?: boolean;
 }
 
 let index: CacheEntry[] = readJSON<CacheEntry[]>(INDEX_KEY, []);
@@ -52,6 +68,9 @@ let index: CacheEntry[] = readJSON<CacheEntry[]>(INDEX_KEY, []);
  */
 const listeners = new Set<() => void>();
 let snapshot: readonly string[] = Object.freeze(index.map((entry) => entry.key));
+let trackSnapshot: readonly Track[] = Object.freeze(
+  index.map((entry) => entry.track).filter((t): t is Track => Boolean(t)),
+);
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
@@ -70,6 +89,9 @@ function dir(): Directory {
 function save(): void {
   writeJSON(INDEX_KEY, index);
   snapshot = Object.freeze(index.map((entry) => entry.key));
+  trackSnapshot = Object.freeze(
+    index.map((entry) => entry.track).filter((t): t is Track => Boolean(t)),
+  );
   listeners.forEach((listener) => listener());
 }
 
@@ -107,8 +129,11 @@ export function cachedUri(track: Track): string | null {
 
 /** Убрать лишнее сверх лимита. Самые старые уходят первыми. */
 function evict(): void {
-  const keep = index.slice(0, LIMIT);
-  const drop = index.slice(LIMIT);
+  const pinned = index.filter((entry) => entry.pinned);
+  const loose = index.filter((entry) => !entry.pinned);
+
+  const keep = [...pinned, ...loose.slice(0, LIMIT)];
+  const drop = loose.slice(LIMIT);
 
   for (const entry of drop) {
     try {
@@ -168,7 +193,7 @@ export async function rememberTrack(
     if (!downloaded.exists) return;
 
     index = [
-      { key, name: downloaded.name, at: Date.now() },
+      { key, name: downloaded.name, at: Date.now(), track },
       ...index.filter((item) => item.key !== key),
     ];
     evict();
@@ -178,6 +203,62 @@ export async function rememberTrack(
   } finally {
     inFlight.delete(key);
   }
+}
+
+/**
+ * Скачать сейчас, по нажатию кнопки.
+ *
+ * Отличается от rememberTrack двумя вещами: не ждёт десяти секунд
+ * (человек уже решил) и помечает запись закреплённой, чтобы её не
+ * вытеснило следующими пятью прослушанными.
+ *
+ * Ссылку принимает готовой: добывать её здесь нельзя — streamUrls.ts
+ * сам зависит от этого модуля, и получилось бы кольцо.
+ */
+export async function downloadNow(track: Track, url: string): Promise<boolean> {
+  const key = trackKey(track);
+  if (inFlight.has(key)) return false;
+
+  if (url.startsWith('file://')) {
+    touch(key);
+    return true;
+  }
+
+  inFlight.add(key);
+  try {
+    const target = new File(dir(), fileName(key));
+    if (target.exists) target.delete();
+
+    const downloaded = await File.downloadFileAsync(url, target);
+    if (!downloaded.exists) return false;
+
+    index = [
+      { key, name: downloaded.name, at: Date.now(), track, pinned: true },
+      ...index.filter((item) => item.key !== key),
+    ];
+    evict();
+    return true;
+  } catch {
+    return false;
+  } finally {
+    inFlight.delete(key);
+  }
+}
+
+/** Убрать скачанный трек по кнопке. */
+export function removeDownload(track: Track): void {
+  const key = trackKey(track);
+  const entry = index.find((item) => item.key === key);
+  if (!entry) return;
+
+  try {
+    const file = new File(dir(), entry.name);
+    if (file.exists) file.delete();
+  } catch {
+    // см. evict()
+  }
+  index = index.filter((item) => item.key !== key);
+  save();
 }
 
 /** Поднять трек наверх списка: он снова свежий и переживёт вытеснение. */
@@ -220,6 +301,11 @@ export function clearAudioCache(): void {
   }
   index = [];
   save();
+}
+
+/** Скачанные треки целиком — включая те, которых нет в медиатеке. */
+export function useCachedTracks(): readonly Track[] {
+  return useSyncExternalStore(subscribe, () => trackSnapshot);
 }
 
 /** Ключи скачанных треков. Для фильтра «Скачанное» в медиатеке. */

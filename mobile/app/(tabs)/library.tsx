@@ -12,10 +12,12 @@ import { AddToPlaylistSheet } from '../../src/ui/components/AddToPlaylistSheet';
 import { EmptyState, ErrorState, TrackListSkeleton } from '../../src/ui/components/states';
 import { useTheme, useThemedStyles, type Theme } from '../../src/ui/theme';
 import { useLibrary, useLibraryFilter } from '../../src/features/useLibrary';
-import { useLikedIds, toggleLike, syncLikes } from '../../src/local/likes';
+import { useLikedIds, useLikedTracks, toggleLike, syncLikes } from '../../src/local/likes';
 import { useIsSignedIn } from '../../src/auth/session';
+import { downloadTrack } from '../../src/features/download';
+import { notifySuccess } from '../../src/ui/haptics';
 import { deleteSong } from '../../src/api/songs';
-import { useCachedKeys } from '../../src/local/audioCache';
+import { useCachedKeys, useCachedTracks, removeDownload } from '../../src/local/audioCache';
 import { trackKey } from '../../src/api/types';
 import { usePlayback } from '../../src/player/usePlayback';
 import type { Track } from '../../src/api/types';
@@ -88,11 +90,15 @@ export default function LibraryScreen() {
     if (!signedIn) syncedCountRef.current = 0;
   }, [signedIn]);
   const cachedKeys = useCachedKeys();
+  const likedTracks = useLikedTracks();
+  const cachedTracks = useCachedTracks();
 
   // Лайки в ref: меню читает их в момент нажатия, а зависимость от массива
   // пересоздавала бы обработчик и с ним весь renderItem списка.
   const likedIdsRef = useRef(new Set(likedIds));
   likedIdsRef.current = new Set(likedIds);
+  const cachedKeysRef = useRef(new Set(cachedKeys));
+  cachedKeysRef.current = new Set(cachedKeys);
   const router = useRouter();
   const queryClient = useQueryClient();
   const { play } = usePlayback();
@@ -118,19 +124,29 @@ export default function LibraryScreen() {
    * «Понравившиеся» показывал пустоту.
    */
   const byFilter = useMemo(() => {
+    // Списки берутся из локальных хранилищ, а не фильтрацией медиатеки.
+    //
+    // Раньше оба фильтра просеивали `tracks` — то есть медиатеку. Но
+    // приложение стало ютуб-плеером: в медиатеке три трека, а слушают
+    // радио и подсказки. Лайкнутый ютуб-трек в медиатеку не попадает,
+    // и «Понравившиеся» показывали пустоту при горящем сердечке.
+    //
+    // Теперь и лайки, и кэш хранят сами треки, а медиатека добавляется
+    // к ним для тех записей, что старше этого изменения.
     if (filter === 'liked') {
       const set = new Set(likedIds);
-      return tracks.filter((track) => set.has(trackKey(track)));
+      const fromLibrary = tracks.filter((track) => set.has(trackKey(track)));
+      const known = new Set(likedTracks.map((track) => trackKey(track)));
+      return [...likedTracks, ...fromLibrary.filter((t) => !known.has(trackKey(t)))];
     }
     if (filter === 'downloaded') {
-      // Раньше здесь всегда было пусто: показывать было нечего. Теперь есть —
-      // офлайн-кэш держит последние прослушанные, и это ровно те треки,
-      // которые играют без сети.
       const set = new Set(cachedKeys);
-      return tracks.filter((track) => set.has(trackKey(track)));
+      const fromLibrary = tracks.filter((track) => set.has(trackKey(track)));
+      const known = new Set(cachedTracks.map((track) => trackKey(track)));
+      return [...cachedTracks, ...fromLibrary.filter((t) => !known.has(trackKey(t)))];
     }
     return tracks;
-  }, [filter, tracks, likedIds, cachedKeys]);
+  }, [filter, tracks, likedIds, cachedKeys, likedTracks, cachedTracks]);
 
   // Фильтрация локальная и мгновенная — сеть не трогаем, дебаунс не нужен.
   const visible = useLibraryFilter(query, byFilter);
@@ -169,6 +185,28 @@ export default function LibraryScreen() {
         onPress: () => toggleLike(menuTrack),
       },
     ];
+
+    // Скачивание работает для любого трека: файл кладётся на телефон,
+    // запись на сервере для этого не нужна. Раньше кнопки не было вовсе —
+    // в кэш попадало только то, что послушали десять секунд подряд.
+    const downloaded = cachedKeysRef.current.has(key);
+    actions.push(
+      downloaded
+        ? {
+            label: 'Удалить загрузку',
+            icon: 'delete-sweep',
+            onPress: () => removeDownload(menuTrack),
+          }
+        : {
+            label: 'Скачать',
+            icon: 'download',
+            onPress: () => {
+              void downloadTrack(menuTrack).then((ok) => {
+                if (ok) notifySuccess();
+              });
+            },
+          },
+    );
 
     // Только для треков из медиатеки: плейлист хранит связь с песней
     // по её идентификатору на сервере, а у играющих по ссылке его нет.

@@ -78,7 +78,13 @@ export default function ActivityScreen() {
               <View style={styles.card}>
                 <Text style={styles.subheading}>Чаще всего</Text>
                 {allTime.topArtists.map((artist, index) => (
-                  <View key={artist.author} style={styles.rank}>
+                  <Pressable
+                    key={artist.author}
+                    style={styles.rank}
+                    onPress={() =>
+                      router.push(`/artist?name=${encodeURIComponent(artist.author)}`)
+                    }
+                  >
                     <Text style={styles.rankNumber}>{index + 1}</Text>
                     {/* Буква в подложке, обложка поверх: у части роликов
                         hq720 отсутствует, и без этого оставался чёрный круг. */}
@@ -100,7 +106,7 @@ export default function ActivityScreen() {
                       {displayArtist(artist.author)}
                     </Text>
                     <Text style={styles.rankValue}>{formatListening(artist.seconds)}</Text>
-                  </View>
+                  </Pressable>
                 ))}
               </View>
             ) : null}
