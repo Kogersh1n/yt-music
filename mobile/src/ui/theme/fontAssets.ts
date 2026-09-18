@@ -1,14 +1,23 @@
-import { Handjet_400Regular, Handjet_700Bold } from '@expo-google-fonts/handjet';
-import {
-  PixelifySans_400Regular,
-  PixelifySans_700Bold,
-} from '@expo-google-fonts/pixelify-sans';
-import {
-  IBMPlexSans_400Regular,
-  IBMPlexSans_500Medium,
-  IBMPlexSans_600SemiBold,
-  IBMPlexSans_700Bold,
-} from '@expo-google-fonts/ibm-plex-sans';
+/**
+ * Импорты подпутями, а не из индекса пакета.
+ *
+ * Это не вкусовщина, а вес сборки. Индекс `@expo-google-fonts/ibm-plex-sans`
+ * делает require() всех четырнадцати начертаний (семь весов × прямой
+ * и курсив), и Metro тянет их в APK целиком — независимо от того, какие
+ * четыре имени мы из него достали. То же у Handjet: девять весов вместо
+ * двух. Замер до правки: 28 файлов Google Fonts в APK при нужных семи.
+ *
+ * Подпуть `@expo-google-fonts/<пакет>/<Начертание>` подключает ровно
+ * один файл.
+ */
+import { Handjet_400Regular } from '@expo-google-fonts/handjet/400Regular';
+import { Handjet_700Bold } from '@expo-google-fonts/handjet/700Bold';
+import { PixelifySans_400Regular } from '@expo-google-fonts/pixelify-sans/400Regular';
+import { PixelifySans_700Bold } from '@expo-google-fonts/pixelify-sans/700Bold';
+import { IBMPlexSans_400Regular } from '@expo-google-fonts/ibm-plex-sans/400Regular';
+import { IBMPlexSans_500Medium } from '@expo-google-fonts/ibm-plex-sans/500Medium';
+import { IBMPlexSans_600SemiBold } from '@expo-google-fonts/ibm-plex-sans/600SemiBold';
+import { IBMPlexSans_700Bold } from '@expo-google-fonts/ibm-plex-sans/700Bold';
 
 /**
  * Файлы шрифтов.

@@ -16,7 +16,26 @@ import { trackKey, type Track } from '../api/types';
  * до этого момента неизвестно, сколько реально проиграло.
  */
 
-const EVENTS_KEY = 'plays.v1';
+/**
+ * Журнал разделён на две части, и это про скорость записи.
+ *
+ * Раньше он лежал одним ключом и переписывался целиком: при полном
+ * журнале это 3,9 МБ на каждую запись, каждые десять секунд во время
+ * прослушивания. Причём меняется всегда только хвост — события
+ * append-only, старое не трогается никогда.
+ *
+ * Теперь свежие события живут отдельным маленьким ключом, который и
+ * пишется часто. Старое уезжает в архив и переписывается только при
+ * переполнении хвоста — раз в несколько сотен треков.
+ *
+ * Старый ключ читается как архив, поэтому накопленная история
+ * не теряется и отдельная миграция не нужна.
+ */
+const ARCHIVE_KEY = 'plays.v1';
+const RECENT_KEY = 'plays.recent.v1';
+
+/** Сколько событий держим в часто пишущемся хвосте. */
+const RECENT_LIMIT = 400;
 const CURRENT_KEY = 'plays.current.v1';
 
 /** Сколько событий помним. Тысяча в месяц по сотне байт — мегабайт в год. */
@@ -50,7 +69,11 @@ interface OpenPlay {
   duration: number;
 }
 
-let events: PlayEvent[] = readJSON<PlayEvent[]>(EVENTS_KEY, []);
+let archive: PlayEvent[] = readJSON<PlayEvent[]>(ARCHIVE_KEY, []);
+let recent: PlayEvent[] = readJSON<PlayEvent[]>(RECENT_KEY, []);
+
+/** Весь журнал целиком. Порядок тот же, что был: от старых к новым. */
+let events: PlayEvent[] = [...archive, ...recent];
 let current: OpenPlay | null = readJSON<OpenPlay | null>(CURRENT_KEY, null);
 
 const listeners = new Set<() => void>();
@@ -81,19 +104,35 @@ function subscribe(listener: () => void): () => void {
 const FLUSH_DELAY_MS = 10_000;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
+/**
+ * Записать хвост, а при переполнении — перелить старое в архив.
+ *
+ * Архив трогается редко: он переписывается только в тот момент, когда
+ * хвост дорос до RECENT_LIMIT, то есть раз в четыреста треков.
+ */
+function writeAll(): void {
+  if (recent.length > RECENT_LIMIT) {
+    const move = recent.length - RECENT_LIMIT;
+    archive = [...archive, ...recent.slice(0, move)].slice(-(LIMIT - RECENT_LIMIT));
+    recent = recent.slice(move);
+    writeJSON(ARCHIVE_KEY, archive);
+  }
+  writeJSON(RECENT_KEY, recent);
+}
+
 function flush(): void {
   if (flushTimer) {
     clearTimeout(flushTimer);
     flushTimer = null;
   }
-  writeJSON(EVENTS_KEY, events);
+  writeAll();
 }
 
 function scheduleFlush(): void {
   if (flushTimer) return;
   flushTimer = setTimeout(() => {
     flushTimer = null;
-    writeJSON(EVENTS_KEY, events);
+    writeAll();
   }, FLUSH_DELAY_MS);
 }
 
@@ -111,19 +150,19 @@ function close(): void {
   // засоряло бы журнал и портило статистику.
   if (current.seconds >= 1) {
     const ratio = current.duration > 0 ? current.seconds / current.duration : 0;
-    events = [
-      ...events,
-      {
-        trackId: current.trackId,
-        youtubeId: current.youtubeId,
-        author: current.author,
-        title: current.title,
-        startedAt: current.startedAt,
-        seconds: Math.round(current.seconds),
-        duration: current.duration,
-        completed: ratio >= COMPLETION_RATIO,
-      },
-    ].slice(-LIMIT);
+    const event: PlayEvent = {
+      trackId: current.trackId,
+      youtubeId: current.youtubeId,
+      author: current.author,
+      title: current.title,
+      startedAt: current.startedAt,
+      seconds: Math.round(current.seconds),
+      duration: current.duration,
+      completed: ratio >= COMPLETION_RATIO,
+    };
+
+    recent = [...recent, event];
+    events = [...events, event].slice(-LIMIT);
     commit();
   }
 
@@ -198,6 +237,8 @@ export function usePlayEvents(): readonly PlayEvent[] {
 /** Полная очистка журнала — рядом с кнопкой сброса статистики. */
 export function resetPlays(): void {
   events = [];
+  archive = [];
+  recent = [];
   current = null;
   writeJSON(CURRENT_KEY, null);
   commit();
