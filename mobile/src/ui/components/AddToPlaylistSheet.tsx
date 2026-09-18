@@ -3,6 +3,7 @@ import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'rea
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useTheme, useThemedStyles, type Theme } from '../theme';
 import { usePlaylists, usePlaylistActions } from '../../features/usePlaylists';
+import { ensureSongId } from '../../features/ensureSong';
 import { notifySuccess } from '../haptics';
 import type { Track } from '../../api/types';
 
@@ -68,8 +69,16 @@ export const AddToPlaylistSheet = memo(function AddToPlaylistSheet({ track, onCl
               onPress={() => {
                 if (!track) return;
                 onClose();
-                actions.addSong.mutate({ id: playlist.id, songId: track.id });
-                notifySuccess();
+
+                // У трека с ютуба записи на сервере может не быть —
+                // заводим её перед добавлением. Для трека из медиатеки
+                // это ничего не стоит: ensureSongId сразу вернёт его id.
+                void ensureSongId(track)
+                  .then((songId) => {
+                    actions.addSong.mutate({ id: playlist.id, songId });
+                    notifySuccess();
+                  })
+                  .catch(() => undefined);
               }}
             >
               <MaterialIcons name="queue-music" size={20} color={theme.colors.text} />

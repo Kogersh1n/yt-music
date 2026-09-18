@@ -69,6 +69,30 @@ export function getYouTubeStream(
  * так решено на бэкенде, и это удобно, потому что клиент дублирует
  * запросы при сведении списков после входа.
  */
+/**
+ * Завести на сервере запись ютуб-трека — без скачивания файла.
+ *
+ * Нужна, чтобы такой трек можно было положить в плейлист или лайкнуть:
+ * обе связи держатся на идентификаторе песни, а у играющего по ссылке
+ * его до сих пор не было. Повторный вызов возвращает уже заведённую
+ * запись, поэтому помнить, заводили ли мы её, не нужно.
+ */
+export function createExternalSong(
+  track: { youtubeId: string; title: string; author: string; duration: number },
+  signal?: AbortSignal,
+): Promise<SongResponse> {
+  return request<SongResponse>('/songs/external', {
+    method: 'POST',
+    body: JSON.stringify({
+      youtube_id: track.youtubeId,
+      title: track.title,
+      author: track.author,
+      duration: track.duration,
+    }),
+    signal,
+  });
+}
+
 export function addLike(songId: string, signal?: AbortSignal): Promise<unknown> {
   return request(`/songs/${songId}/like`, { method: 'POST', signal });
 }

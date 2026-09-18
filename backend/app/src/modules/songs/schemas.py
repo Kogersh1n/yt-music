@@ -12,7 +12,7 @@ class SongBase(BaseModel):
 
 
 class SongCreate(SongBase):
-    audio_file_key: str
+    audio_file_key: str | None = None
     cover_file_key: str | None = None
     youtube_id: str | None = None
 
@@ -29,7 +29,7 @@ class SongResponse(SongBase):
     listened: int
     liked: int
 
-    audio_file_key: str 
+    audio_file_key: str | None = None
     cover_file_key: str | None
     cover_url: str | None = None
 
@@ -54,6 +54,21 @@ class SongPaginationResponse(BaseModel):
     items: list[SongResponse]
     next_cursor: str | None
     has_more: bool
+
+class SongExternal(BaseModel):
+    """Песня, которая играет по ссылке, без файла в хранилище.
+
+    Заводится, когда ютуб-трек нужно с чем-то связать — положить
+    в плейлист или лайкнуть на сервере. Аудио при этом не скачивается:
+    запись существует ради связей.
+    """
+
+    youtube_id: str
+    title: str
+    author: str
+    duration: int = 0
+    cover_url: str | None = None
+
 
 class SongYoutubeImport(BaseModel):
     query: str 

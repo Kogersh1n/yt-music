@@ -9,7 +9,8 @@ import { TrackRow } from '../src/ui/components/TrackRow';
 import { MiniPlayer } from '../src/ui/components/MiniPlayer';
 import { EmptyState, ErrorState, TrackListSkeleton } from '../src/ui/components/states';
 import { useTheme, useThemedStyles, type Theme } from '../src/ui/theme';
-import { artistTracks } from '../src/api/ytmusic';
+import { Image } from 'expo-image';
+import { artistTracks, searchArtists } from '../src/api/ytmusic';
 import { displayArtist } from '../src/api/songText';
 import { usePlayEvents } from '../src/local/plays';
 import { formatListening } from '../src/local/stats';
@@ -59,6 +60,21 @@ export default function ArtistScreen() {
     return { seconds, plays, unique: titles.size };
   }, [events, artist]);
 
+  /**
+   * Портрет и подпись исполнителя.
+   *
+   * Отдельным запросом от списка песен: если профиль не найдётся,
+   * песни всё равно покажутся, и наоборот. Связывать их одним запросом
+   * значило бы терять оба из-за одного.
+   */
+  const profile = useQuery({
+    queryKey: ['artist-profile', artist],
+    enabled: artist.length > 0,
+    staleTime: 24 * 60 * 60_000,
+    retry: 1,
+    queryFn: async () => (await searchArtists(artist, 1))[0] ?? null,
+  });
+
   const query = useQuery({
     queryKey: ['artist', artist],
     enabled: artist.length > 0,
@@ -91,6 +107,31 @@ export default function ArtistScreen() {
           {shown}
         </Text>
       </View>
+
+      {profile.data ? (
+        <View style={styles.profile}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarLetter}>{shown.slice(0, 1).toUpperCase()}</Text>
+            {profile.data.avatar ? (
+              <Image
+                source={{ uri: profile.data.avatar }}
+                style={styles.avatarImage}
+                cachePolicy="memory-disk"
+                contentFit="cover"
+                transition={theme.motion.scale === 0 ? 0 : 150}
+              />
+            ) : null}
+          </View>
+          <View style={styles.profileText}>
+            <Text numberOfLines={1} style={styles.profileName}>
+              {profile.data.name}
+            </Text>
+            <Text numberOfLines={2} style={styles.profileMeta}>
+              {profile.data.subtitle}
+            </Text>
+          </View>
+        </View>
+      ) : null}
 
       {mine.plays > 0 ? (
         <View style={styles.mine}>
@@ -154,6 +195,28 @@ const makeStyles = (t: Theme) =>
     },
     back: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
     headerTitle: { ...t.type.section, color: t.colors.text, flex: 1 },
+
+    profile: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: t.spacing.md,
+      paddingHorizontal: t.layout.screenPadding,
+      paddingBottom: t.spacing.md,
+    },
+    avatar: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: t.colors.surfaceHigh,
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+    },
+    avatarImage: { width: '100%', height: '100%', position: 'absolute' },
+    avatarLetter: { ...t.type.section, color: t.colors.textDim },
+    profileText: { flex: 1, gap: 2 },
+    profileName: { ...t.type.section, color: t.colors.text },
+    profileMeta: { ...t.type.meta, color: t.colors.textDim },
 
     mine: {
       marginHorizontal: t.layout.screenPadding,

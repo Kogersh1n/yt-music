@@ -22,6 +22,7 @@ import { usePlayback } from '../../src/player/usePlayback';
 import { enqueue } from '../../src/features/importQueue';
 import { useRecommendations } from '../../src/features/recommend';
 import { ImportPanel } from '../../src/ui/components/ImportPanel';
+import { SearchSections } from '../../src/ui/components/SearchSections';
 import type { Track } from '../../src/api/types';
 
 /** Вынесен из компонента: иначе новая функция на каждый рендер. */
@@ -236,6 +237,7 @@ export default function ExploreScreen() {
         suggestions={suggestions.tracks}
         suggestionsLoading={suggestions.isLoading}
         onPlaySuggestion={playSuggestion}
+        onPickAlbum={setQuery}
       />
     </View>
   );
@@ -252,6 +254,7 @@ function Body({
   suggestions,
   suggestionsLoading,
   onPlaySuggestion,
+  onPickAlbum,
 }: {
   query: string;
   isDemo: boolean;
@@ -263,6 +266,7 @@ function Body({
   suggestions: readonly Track[];
   suggestionsLoading: boolean;
   onPlaySuggestion: (index: number) => void;
+  onPickAlbum: (query: string) => void;
 }) {
   const styles = useThemedStyles(makeStyles);
 
@@ -324,6 +328,10 @@ function Body({
       keyExtractor={keyExtractor}
       contentContainerStyle={contentContainerStyle}
       keyboardShouldPersistTaps="handled"
+      // Исполнители и альбомы едут в шапке списка, а не отдельным блоком
+      // сверху: иначе они не прокручивались бы вместе с песнями и
+      // занимали бы половину экрана постоянно.
+      ListHeaderComponent={<SearchSections query={query} onPickAlbum={onPickAlbum} />}
     />
   );
 }

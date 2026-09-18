@@ -31,7 +31,12 @@ class Song(Base):
         String(20), unique=True, index=True, default=None
     )
 
-    audio_file_key: Mapped[str] = mapped_column(String(255))
+    # Необязателен: у песни, которая играет по ссылке с ютуба, файла
+    # в хранилище нет. Такая запись нужна ради связей — лайков и
+    # плейлистов, — а не ради аудио. Раньше поля не было, и добавить
+    # ютуб-трек в плейлист было нельзя в принципе: плейлист хранит
+    # song_id, а строки песни не существовало.
+    audio_file_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     cover_file_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     listened: Mapped[int] = mapped_column(server_default=text("0"))

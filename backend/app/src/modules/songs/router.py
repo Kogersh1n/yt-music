@@ -10,6 +10,7 @@ from src.modules.songs.schemas import (
     SongPaginationResponse,
     SongResponse,
     SongStreamResponse,
+    SongExternal,
     SongYoutubeImport,
     UploadCredentialsResponse,
     YouTubeSearchResponse,
@@ -107,6 +108,20 @@ async def import_from_youtube(
     Ручка оставлена как запасной путь и как способ добавить трек не с телефона.
     """
     return await song_service.import_from_youtube(session=session, url=import_data.query)
+
+
+@songs_router.post('/external', response_model=SongResponse)
+async def create_external(session: SessionDep, user: UserDep, data: SongExternal):
+    """Завести запись ютуб-трека без скачивания файла.
+
+    Нужна, чтобы такой трек можно было положить в плейлист или лайкнуть:
+    и то и другое связано с песней по её идентификатору на сервере,
+    а у играющего по ссылке его до сих пор не было.
+
+    Повторный вызов возвращает уже заведённую запись, а не ошибку.
+    """
+    song = await song_service.ensure_external(session, data)
+    return await song_service.get_song(session=session, song_id=song.id)
 
 
 # ─── YouTube ─────────────────────────────────────────────────────────────

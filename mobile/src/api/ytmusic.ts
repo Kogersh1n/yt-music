@@ -244,3 +244,87 @@ export async function artistTracks(artist: string, limit = 30): Promise<Track[]>
 
   return out;
 }
+
+/* ------------------------------------------------------------------ */
+/* Поиск по разделам                                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Фильтры выдачи. Те же закодированные protobuf-поля, что и у песен:
+ * без них поиск возвращает смесь всего подряд, разложенную по секциям,
+ * и разбирать её пришлось бы по структуре ответа, которая меняется.
+ * Отдельный запрос на раздел надёжнее.
+ */
+const ARTISTS_FILTER = 'EgWKAQIgAWoKEAkQChAFEAMQBA%3D%3D';
+const ALBUMS_FILTER = 'EgWKAQIYAWoKEAkQChAFEAMQBA%3D%3D';
+
+export interface FoundArtist {
+  name: string;
+  /** Идентификатор канала. Пригодится, когда понадобится страница артиста целиком. */
+  browseId: string | null;
+  /** Настоящий портрет, а не обложка трека. */
+  avatar: string | null;
+  /** «Исполнитель • 102 млн слушателей в месяц». */
+  subtitle: string;
+}
+
+export interface FoundAlbum {
+  title: string;
+  /** «Альбом • Queen • 1991» — разбирать на части не пытаемся, показываем как есть. */
+  subtitle: string;
+  cover: string | null;
+}
+
+/** Текст колонки выдачи: у разных разделов он собран из нескольких кусков. */
+function flexText(column: unknown): string {
+  const runs =
+    (column as { musicResponsiveListItemFlexColumnRenderer?: { text?: { runs?: { text?: string }[] } } })
+      ?.musicResponsiveListItemFlexColumnRenderer?.text?.runs ?? [];
+  return runs.map((run) => run.text ?? '').join('');
+}
+
+function biggest(item: unknown, size: number): string | null {
+  const thumbs = findFirst(item, 'thumbnails', isThumbList);
+  if (!thumbs || thumbs.length === 0) return null;
+
+  const last = thumbs[thumbs.length - 1];
+  return sized(last.url, size);
+}
+
+export async function searchArtists(query: string, limit = 8): Promise<FoundArtist[]> {
+  const visitor = await getVisitorData();
+  const data = await innertube<unknown>(MUSIC, 'search', { query, params: ARTISTS_FILTER }, visitor);
+
+  const out: FoundArtist[] = [];
+  for (const item of collect(data, 'musicResponsiveListItemRenderer')) {
+    const columns = (item as { flexColumns?: unknown[] })?.flexColumns ?? [];
+    const name = flexText(columns[0]);
+    if (!name) continue;
+
+    out.push({
+      name,
+      browseId: findFirst(item, 'browseId', isString),
+      avatar: biggest(item, 240),
+      subtitle: flexText(columns[1]),
+    });
+
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+export async function searchAlbums(query: string, limit = 12): Promise<FoundAlbum[]> {
+  const visitor = await getVisitorData();
+  const data = await innertube<unknown>(MUSIC, 'search', { query, params: ALBUMS_FILTER }, visitor);
+
+  const out: FoundAlbum[] = [];
+  for (const item of collect(data, 'musicResponsiveListItemRenderer')) {
+    const columns = (item as { flexColumns?: unknown[] })?.flexColumns ?? [];
+    const title = flexText(columns[0]);
+    if (!title) continue;
+
+    out.push({ title, subtitle: flexText(columns[1]), cover: biggest(item, 320) });
+    if (out.length >= limit) break;
+  }
+  return out;
+}

@@ -271,6 +271,32 @@ class SongService:
 
         return await self.repo.create(session=session, obj_in=song_in)
 
+    async def ensure_external(self, session: AsyncSession, data) -> Song:
+        """Вернуть запись ютуб-трека, заведя её при первом обращении.
+
+        Идемпотентно намеренно: клиент зовёт это перед каждым добавлением
+        в плейлист и не обязан помнить, заводил ли он эту песню раньше.
+        Ошибка на повторе означала бы, что клиенту нужно вести учёт —
+        а он и так знает только youtube_id.
+        """
+        existing = await self.repo.get_by_youtube_id(session, youtube_id=data.youtube_id)
+        if existing is not None:
+            return existing
+
+        return await self.repo.create(
+            session=session,
+            obj_in=SongCreate(
+                title=data.title[:50],
+                author=data.author[:100],
+                duration=data.duration,
+                youtube_id=data.youtube_id,
+                # Файла нет — песня играет по ссылке. Обложку тоже не
+                # кладём в хранилище: у клиента она уже есть.
+                audio_file_key=None,
+                cover_file_key=None,
+            ),
+        )
+
     async def search_library(
         self,
         session: AsyncSession,
