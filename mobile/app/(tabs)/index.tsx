@@ -5,18 +5,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Carousel } from '../../src/ui/components/Carousel';
-import { TrackRow } from '../../src/ui/components/TrackRow';
 import { CarouselSkeleton, ErrorState, EmptyState } from '../../src/ui/components/states';
 import { useTheme, useThemedStyles, type Theme } from '../../src/ui/theme';
 import { useLibrary } from '../../src/features/useLibrary';
 import { useRecommendations } from '../../src/features/recommend';
+import { useSpeedDial } from '../../src/features/speedDial';
+import { SpeedDial } from '../../src/ui/components/SpeedDial';
 import { useRecents } from '../../src/local/recents';
 import { usePlayback } from '../../src/player/usePlayback';
 import { prefetchStreamUrl } from '../../src/player/streamUrls';
 import type { Track } from '../../src/api/types';
 
 const NEWEST_COUNT = 10;
-const QUICK_PICKS_START = 10;
 
 /**
  * Главная. Композиция каруселей поверх одной ленты медиатеки — вся логика
@@ -30,6 +30,7 @@ export default function HomeScreen() {
   const { tracks, isDemo, isLoading, error, refetch, isRefetching } = useLibrary();
   const recents = useRecents();
   const suggestions = useRecommendations();
+  const speedDial = useSpeedDial();
 
   // Прогрев ссылки на самое вероятное первое нажатие.
   //
@@ -57,10 +58,6 @@ export default function HomeScreen() {
    * Врать в подписи не хочется.
    */
   const newest = useMemo(() => tracks.slice(0, NEWEST_COUNT), [tracks]);
-  const quickPicks = useMemo(
-    () => tracks.slice(QUICK_PICKS_START, QUICK_PICKS_START + NEWEST_COUNT),
-    [tracks],
-  );
 
   if (error && tracks.length === 0) {
     return (
@@ -146,22 +143,13 @@ export default function HomeScreen() {
             <Carousel title="Новое" tracks={newest} onPressTrack={handlePlay} />
           ) : null}
 
-          {quickPicks.length > 0 ? (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Быстрый выбор</Text>
-              {/* Индекс считаем арифметикой, а не indexOf: quickPicks —
-                  это срез tracks с 10-го, и поиск по всей медиатеке
-                  на каждую из десяти строк был чистой тратой. */}
-              {quickPicks.map((track, offset) => (
-                <TrackRow
-                  key={track.id}
-                  track={track}
-                  index={QUICK_PICKS_START + offset}
-                  onPress={handleRowPress}
-                />
-              ))}
-            </View>
-          ) : null}
+          {/* Быстрый набор вместо «Быстрого выбора».
+              Тот был срезом той же медиатеки, что и «Новое» — просто
+              следующие десять строк того же списка, и заголовок обещал
+              подборку, а показывал остаток. Здесь же то, к чему человек
+              возвращается сам, и место плитки в сетке не меняется —
+              ради этого блок и нужен. */}
+          <SpeedDial tracks={speedDial} onPressTrack={handlePlay} />
         </>
       )}
     </ScrollView>
